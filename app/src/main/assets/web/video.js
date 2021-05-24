@@ -1,7 +1,7 @@
 // Web socket configuration
-const host = "192.168.178.3" //windows.location.host;
+const host = "172.16.42.3" //windows.location.host;
 const port = "8080" //windows.location.port;
-const path = "/connect";
+const path = "/socket";
 const ssl = false;
 const protocol = ssl ? "wss" : "ws";
 const webSocketUrl = protocol + "://" + host + ":" + port + path;

@@ -13,8 +13,8 @@ class RtcClient(
 ) {
 
     companion object {
-        private const val LOCAL_TRACK_ID = "local_track"
-        private const val LOCAL_STREAM_ID = "local_track"
+        private const val LOCAL_TRACK_ID = "acamera_track"
+        private const val LOCAL_STREAM_ID = "acamera_track"
     }
 
     private val rootEglBase: EglBase = EglBase.create()
@@ -24,8 +24,8 @@ class RtcClient(
     }
 
     private val iceServer = listOf(
-        //PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
-        PeerConnection.IceServer.builder("")
+        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
+        //PeerConnection.IceServer.builder("")
             .createIceServer()
     )
 

@@ -59,7 +59,7 @@ class MainActivity : AppCompatActivity() {
         restartButton = findViewById(R.id.restart_button)
 
         val signalingServer = SignalingServer(this)
-        signalingServer.start()
+        signalingServer.run()
 
         checkCameraPermission()
     }

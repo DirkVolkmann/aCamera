@@ -21,33 +21,38 @@ import java.util.*
 
 private const val TAG = "aCamera SignalingServer"
 
-class SignalingServer(private val context: Context) {
+class SignalingServer(private val context: Context) : Runnable {
+
+    companion object {
+        private const val ASSETS_FOLDER = "web"
+
+        private const val SOCKET_PORT = 8080
+        private const val SOCKET_PATH = "/socket"
+        private const val SOCKET_PING_PERIOD_SECONDS = 60L
+        private const val SOCKET_TIMEOUT_SECONDS = 15L
+        private const val SOCKET_MAX_FRAME_SIZE = Long.MAX_VALUE
+        private const val SOCKET_MASKING = false
+    }
 
     private val server = getServerInstance()
 
-    init {
+    override fun run() {
+        Log.d(TAG, "Running server thread")
         copyWebResources()
-    }
-
-    fun start() {
-        Log.d(TAG, "starting server")
         server.start()
     }
 
     private fun getServerInstance(): NettyApplicationEngine {
 
-        return embeddedServer(Netty, 8080) {
-            /*install(DefaultHeaders) {
-                header("X-Engine", "Netty") // will send this header with each response
-            }*/
+        return embeddedServer(Netty, SOCKET_PORT) {
 
             install(CallLogging)
 
             install(WebSockets) {
-                pingPeriod = Duration.ofSeconds(60)
-                timeout = Duration.ofSeconds(15)
-                maxFrameSize = Long.MAX_VALUE
-                masking = false
+                pingPeriod = Duration.ofSeconds(SOCKET_PING_PERIOD_SECONDS)
+                timeout = Duration.ofSeconds(SOCKET_TIMEOUT_SECONDS)
+                maxFrameSize = SOCKET_MAX_FRAME_SIZE
+                masking = SOCKET_MASKING
             }
 
             install(ContentNegotiation) {
@@ -58,7 +63,7 @@ class SignalingServer(private val context: Context) {
             val connections = Collections.synchronizedMap(mutableMapOf<String, WebSocketServerSession>())
 
             routing {
-                webSocket(path = "/connect") {
+                webSocket(path = SOCKET_PATH) {
                     val id = UUID.randomUUID().toString()
                     connections[id] = this
                     Log.d(TAG, "New client connected with ID: $id")
@@ -90,11 +95,11 @@ class SignalingServer(private val context: Context) {
     }
 
     private fun copyWebResources() {
-        val files = context.assets.list("web")
+        val files = context.assets.list(ASSETS_FOLDER)
 
         files?.forEach { path ->
             println(path)
-            val input = context.assets.open("web/$path")
+            val input = context.assets.open("$ASSETS_FOLDER/$path")
             val outFile = File(context.filesDir, path)
             val outStream = FileOutputStream(outFile)
             outStream.write(input.readBytes())
