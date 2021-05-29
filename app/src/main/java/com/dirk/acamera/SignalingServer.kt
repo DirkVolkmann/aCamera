@@ -21,7 +21,10 @@ import java.util.*
 
 private const val TAG = "aCamera SignalingServer"
 
-class SignalingServer(private val context: Context) : Runnable {
+class SignalingServer(
+    private val listener: SignalingServerListener,
+    private val context: Context
+) : Runnable {
 
     companion object {
         private const val ASSETS_FOLDER = "web"
@@ -35,6 +38,7 @@ class SignalingServer(private val context: Context) : Runnable {
     }
 
     private val server = getServerInstance()
+    var connections = 0
 
     override fun run() {
         Log.d(TAG, "Running server thread")
@@ -60,14 +64,16 @@ class SignalingServer(private val context: Context) : Runnable {
                 }
             }
 
-            val connections = Collections.synchronizedMap(mutableMapOf<String, WebSocketServerSession>())
+            var connections = Collections.synchronizedMap(mutableMapOf<String, WebSocketServerSession>())
 
             routing {
                 webSocket(path = SOCKET_PATH) {
                     val id = UUID.randomUUID().toString()
-                    connections[id] = this
                     Log.d(TAG, "New client connected with ID: $id")
-                    Log.d(TAG, "Connected clients: ${connections.size}")
+                    connections[id] = this
+                    this@SignalingServer.connections = connections.size
+                    Log.d(TAG, "Connected clients: ${this@SignalingServer.connections}")
+                    listener.onConnectionEstablished()
 
                     try {
                         for (data in incoming) {
@@ -84,7 +90,9 @@ class SignalingServer(private val context: Context) : Runnable {
                     } finally {
                         Log.d(TAG, "Removing client with ID: $id")
                         connections.remove(id)
-                        Log.d(TAG, "Connected clients: ${connections.size}")
+                        this@SignalingServer.connections = connections.size
+                        Log.d(TAG, "Connected clients: ${this@SignalingServer.connections}")
+                        listener.onConnectionAborted()
                     }
                 }
                 static("/") {

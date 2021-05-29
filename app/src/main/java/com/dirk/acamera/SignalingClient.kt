@@ -3,6 +3,8 @@ package com.dirk.acamera
 import android.os.Handler
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.JsonElement
+import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -50,7 +52,18 @@ class SignalingClient(
         private const val TYPE_OFFER = "OFFER"
     }
 
-    var isConnected = false
+    enum class State {
+        INITIALIZING,           // Set internally
+        CONNECTING_TO_SERVER,   //
+        WAITING_FOR_CLIENT,     // Set by listener
+        WAITING_FOR_ANSWER,     //
+        WAITING_FOR_CONNECTION, //
+        CONNECTION_ESTABLISHED, //
+        CONNECTION_ABORTED,     //
+        CONNECTION_FAILED       //
+    }
+
+    var state = State.INITIALIZING
 
     private val gson = Gson()
     private val job = Job()
@@ -70,20 +83,22 @@ class SignalingClient(
     init {
         // Connect to Signaling Server and retry if server is not up yet
         // TODO: Reconnecting should be done by watchdog
-        for (tryNr in 1..retries) {
-            if (isConnected) break
-            Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$SOCKET_PORT$SOCKET_PATH' try $tryNr of $retries")
+        //for (tryNr in 1..retries) {
+            //if (isConnected) break
+            //Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$SOCKET_PORT$SOCKET_PATH' try $tryNr of $retries")
+            Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$SOCKET_PORT$SOCKET_PATH'")
             connect()
-            Thread.sleep(RETRY_AFTER_MS)
-        }
-        if (!isConnected) {
-            Log.d(TAG, "Connection to socket finally failed after $retries tries")
-            listener.onConnectionFailed()
-        }
+            //Thread.sleep(RETRY_AFTER_MS)
+        //}
+        //if (!isConnected) {
+        //    Log.d(TAG, "Connection to socket finally failed after $retries tries")
+        //    listener.onConnectionFailed()
+        //}
     }
 
     @OptIn(ObsoleteCoroutinesApi::class)
     private fun connect() = launch {
+        state = State.CONNECTING_TO_SERVER
         try {
             client.ws(
                 host = SOCKET_HOST,
@@ -91,9 +106,8 @@ class SignalingClient(
                 path = SOCKET_PATH
             ) {
                 // At this point the connection is established
-                isConnected = true
-                listener.onConnectionEstablished()
                 Log.d(TAG, "Connection to socket established")
+                listener.onConnectionEstablished()
                 val sendData = sendChannel.openSubscription()
 
                 // React to incoming and outgoing frames
@@ -108,40 +122,62 @@ class SignalingClient(
                         // Check if a frame is incoming
                         incoming.tryReceive().getOrNull()?.let { frame ->
                             if (frame is Frame.Text) {
+                                // Get text from received data
                                 val data = frame.readText()
                                 Log.d(TAG, "Received: $data")
-                                val jsonObject = gson.fromJson(data, JsonObject::class.java)
-                                withContext(Dispatchers.Main) {
+                                // Data could be "null"
+                                val jsonElement: JsonElement = gson.fromJson(data, JsonElement::class.java)
+                                if (jsonElement !is JsonNull) {
+                                    val jsonObject = jsonElement as JsonObject
 
-                                    // Frame is an ICE candidate?
-                                    if (jsonObject.has(JSON_SDP) && jsonObject.has(JSON_SDP_MID) && jsonObject.has(JSON_SDP_MLI)) {
-                                        Log.d(TAG, "ICE candidate received")
-                                        listener.onIceCandidateReceived(gson.fromJson(data, IceCandidate::class.java))
-                                    }
+                                    withContext(Dispatchers.Main) {
 
-                                    // Frame is an OFFER or ANSWER?
-                                    else if (jsonObject.has(JSON_TYPE)) {
-                                        // We may have to modify our message a little bit ...
-                                        // ... the type has to be uppercase
-                                        val jsonObjectType = jsonObject.get(JSON_TYPE).asString.uppercase(Locale.getDefault())
-                                        jsonObject.remove(JSON_TYPE)
-                                        jsonObject.addProperty(JSON_TYPE, jsonObjectType)
-                                        // ... the description has to be called 'description'
-                                        //     but browsers call it 'sdp'
-                                        if (jsonObject.has(JSON_SDP)) {
-                                            val jsonObjectDesc = jsonObject.get(JSON_SDP).asString
-                                            jsonObject.remove(JSON_SDP)
-                                            jsonObject.addProperty(JSON_SDP_ANDROID, jsonObjectDesc)
+                                        // Frame is an ICE candidate?
+                                        if (jsonObject.has(JSON_SDP) && jsonObject.has(JSON_SDP_MID) && jsonObject.has(
+                                                JSON_SDP_MLI
+                                            )
+                                        ) {
+                                            Log.d(TAG, "ICE candidate received")
+                                            listener.onIceCandidateReceived(
+                                                gson.fromJson(
+                                                    data,
+                                                    IceCandidate::class.java
+                                                )
+                                            )
                                         }
-                                        // Now the modified message can be parsed to GSON
-                                        // and given to the RTC client
-                                        val sessionDescription = gson.fromJson(jsonObject, SessionDescription::class.java)
-                                        if (sessionDescription.type == SessionDescription.Type.OFFER) {
+
+                                        // Frame is an ANSWER?
+                                        else if (jsonObject.has(JSON_TYPE)) {
+                                            // We may have to modify our message a little bit ...
+                                            // ... the type has to be uppercase
+                                            val jsonObjectType =
+                                                jsonObject.get(JSON_TYPE).asString.uppercase(Locale.getDefault())
+                                            jsonObject.remove(JSON_TYPE)
+                                            jsonObject.addProperty(JSON_TYPE, jsonObjectType)
+                                            // ... the description has to be called 'description'
+                                            //     but browsers call it 'sdp'
+                                            if (jsonObject.has(JSON_SDP)) {
+                                                val jsonObjectDesc =
+                                                    jsonObject.get(JSON_SDP).asString
+                                                jsonObject.remove(JSON_SDP)
+                                                jsonObject.addProperty(
+                                                    JSON_SDP_ANDROID,
+                                                    jsonObjectDesc
+                                                )
+                                            }
+                                            // Now the modified message can be parsed to GSON
+                                            // and given to the RTC client
+                                            val sessionDescription = gson.fromJson(
+                                                jsonObject,
+                                                SessionDescription::class.java
+                                            )
+                                            /*if (sessionDescription.type == SessionDescription.Type.OFFER) {
                                             Log.d(TAG, "Offer received")
                                             listener.onOfferReceived(sessionDescription)
-                                        } else if (sessionDescription.type == SessionDescription.Type.ANSWER) {
-                                            Log.d(TAG, "Answer received")
-                                            listener.onAnswerReceived(sessionDescription)
+                                        } else */if (sessionDescription.type == SessionDescription.Type.ANSWER) {
+                                                Log.d(TAG, "Answer received")
+                                                listener.onAnswerReceived(sessionDescription)
+                                            }
                                         }
                                     }
                                 }
@@ -149,13 +185,13 @@ class SignalingClient(
                         }
                     }
                 } catch (e: Throwable) {
-                    Log.i(TAG, "Something happened that upset me :'(", e)
-                    isConnected = false
-                    //listener.onConnectionAborted()
+                    Log.e(TAG, "Something happened that upset me :'(", e)
+                    listener.onConnectionAborted()
                 }
             }
         } catch (e: ConnectException) {
             Log.i(TAG, "connection error", e)
+            listener.onConnectionFailed()
         }
     }
 

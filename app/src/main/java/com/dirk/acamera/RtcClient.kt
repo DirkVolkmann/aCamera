@@ -48,7 +48,7 @@ class RtcClient(
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(rootEglBase.eglBaseContext))
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(rootEglBase.eglBaseContext, true, true))
             .setOptions(PeerConnectionFactory.Options().apply {
-                disableEncryption = true
+                disableEncryption = false
                 disableNetworkMonitor = true
             })
             .createPeerConnectionFactory()
@@ -85,7 +85,9 @@ class RtcClient(
         peerConnection?.addStream(localStream)
     }
 
-    private fun PeerConnection.call(sdpObserver: SdpObserver) {
+    private fun PeerConnection.offer(sdpObserver: SdpObserver) {
+        Log.d(TAG, "Calling: $sdpObserver")
+
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
         }
@@ -138,9 +140,11 @@ class RtcClient(
         }, constraints)
     }
 
-    fun call(sdpObserver: SdpObserver) = peerConnection?.call(sdpObserver)
+    fun offer(sdpObserver: SdpObserver) = peerConnection?.offer(sdpObserver)
 
     fun answer(sdpObserver: SdpObserver) = peerConnection?.answer(sdpObserver)
+
+    //fun close() = peerConnection?.close()
 
     fun onRemoteSessionReceived(sessionDescription: SessionDescription) {
         Log.d(TAG, "Received remote session: ${sessionDescription.type}\n${sessionDescription.description}")
@@ -161,7 +165,7 @@ class RtcClient(
     }
 
     fun addIceCandidate(iceCandidate: IceCandidate?) {
-        Log.d(TAG, "Adding ICE candidate: ${iceCandidate?.serverUrl}")
+        Log.d(TAG, "Adding ICE candidate: ${iceCandidate?.toString()}")
         peerConnection?.addIceCandidate(iceCandidate)
     }
 }
