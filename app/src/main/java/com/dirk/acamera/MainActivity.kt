@@ -127,14 +127,15 @@ class MainActivity : AppCompatActivity() {
         rtcClient.initSurfaceView(localView)
         rtcClient.startLocalVideoCapture(localView)
 
-        connectionText.text = "Creating signaling client..."
+        connectionText.text = "Creating local signaling client..."
         signalingClient = SignalingClient(createSignalingClientListener())
 
-        connectionText.text = "Waiting for connection..."
+        connectionText.text = "Waiting for remote client..."
     }
 
     private fun onCameraPermissionDenied() {
         connectionProgress.isGone = true
+        connectionText.isGone = false
         connectionText.text = "This app needs the camera to function"
         Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
     }
@@ -146,20 +147,27 @@ class MainActivity : AppCompatActivity() {
     private fun createSignalingServerListener() = object : SignalingServerListener {
         override fun onConnectionEstablished() {
             Log.d(TAG, "onConnectionEstablished called")
+
             if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
                 Log.d(TAG, "Remote client connected, sending offer...")
+
                 connectionProgress.isGone = false
+                connectionText.isGone = false
                 connectionText.text = "Calling remote client..."
+
                 rtcClient.offer(sdpObserver)
             }
         }
 
         override fun onConnectionAborted() {
             Log.d(TAG, "onConnectionAborted called")
+
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
                 Log.d(TAG,"Remote client disconnected")
+
                 connectionProgress.isGone = false
-                connectionText.text = "Waiting for connection..."
+                connectionText.isGone = false
+                connectionText.text = "Waiting for remote client..."
             }
         }
     }
@@ -173,20 +181,24 @@ class MainActivity : AppCompatActivity() {
         override fun onConnectionEstablished() {
             if (signalingServer.connections >= 2) {
                 Log.d(TAG, "Another client is already connected, sending offer...")
+
                 connectionProgress.isGone = false
-                connectionText.text = "Calling client..."
+                connectionText.isGone = false
+                connectionText.text = "Calling remote client..."
+
                 rtcClient.offer(sdpObserver)
             }
         }
 
         override fun onConnectionFailed() {
             connectionProgress.isGone = true
+            connectionText.isGone = false
             connectionText.text = "Connection failed"
         }
 
         override fun onConnectionAborted() {
-            signalingClient.state = SignalingClient.State.CONNECTION_ABORTED
             connectionProgress.isGone = true
+            connectionText.isGone = false
             connectionText.text = "Connection aborted"
         }
 
@@ -197,6 +209,7 @@ class MainActivity : AppCompatActivity() {
         override fun onAnswerReceived(description: SessionDescription) {
             connectionProgress.isGone = true
             connectionText.isGone = true
+
             rtcClient.onRemoteSessionReceived(description)
         }
 
