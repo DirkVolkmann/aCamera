@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
-import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -13,14 +12,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.isGone
-import com.google.android.material.floatingactionbutton.FloatingActionButton
+import kotlinx.coroutines.ObsoleteCoroutinesApi
 import org.webrtc.IceCandidate
-import org.webrtc.MediaStream
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceViewRenderer
 
 private const val TAG = "aCamera MainActivity"
 
+@ObsoleteCoroutinesApi
 class MainActivity : AppCompatActivity() {
 
     companion object {
@@ -33,9 +32,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var signalingServer: SignalingServer
 
     private lateinit var localView: SurfaceViewRenderer
-    private lateinit var remoteView: SurfaceViewRenderer
-    private lateinit var remoteViewProgress: ProgressBar
-    private lateinit var remoteViewText: TextView
+    private lateinit var connectionProgress: ProgressBar
+    private lateinit var connectionText: TextView
 
     private val sdpObserver = object : SimpleSdpObserver() {
         override fun onCreateSuccess(p0: SessionDescription?) {
@@ -48,24 +46,25 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        Log.d(TAG, "onCreate: executed")
-
         localView = findViewById(R.id.local_view)
-        remoteView = findViewById(R.id.remote_view)
-        remoteViewProgress = findViewById(R.id.remote_view_progress)
-        remoteViewText = findViewById(R.id.remote_view_text)
+        connectionProgress = findViewById(R.id.connection_progress)
+        connectionText = findViewById(R.id.connection_text)
 
-        remoteViewText.text = "Creating signaling server..."
+        connectionText.text = "Creating signaling server..."
         signalingServer = SignalingServer(createSignalingServerListener(), this)
-        remoteViewText.text = "Starting signaling server..."
-        signalingServer.run()
+        connectionText.text = "Starting signaling server..."
+    }
 
-        remoteViewText.text = "Checking camera permissions..."
+    override fun onResume() {
+        super.onResume()
+
+        connectionText.text = "Checking camera permissions..."
         checkCameraPermission()
     }
 
     override fun onDestroy() {
         signalingClient.destroy()
+        signalingServer.stop()
         super.onDestroy()
     }
 
@@ -79,34 +78,6 @@ class MainActivity : AppCompatActivity() {
         } else {
             onCameraPermissionGranted()
         }
-    }
-
-    private fun onCameraPermissionGranted() {
-        remoteViewText.text = "Creating RTC client..."
-        rtcClient = RtcClient(
-            application,
-            object : PeerConnectionObserver() {
-                override fun onIceCandidate(p0: IceCandidate?) {
-                    super.onIceCandidate(p0)
-                    signalingClient.send(p0)
-                    rtcClient.addIceCandidate(p0)
-                }
-
-                override fun onAddStream(p0: MediaStream?) {
-                    super.onAddStream(p0)
-                    p0?.videoTracks?.get(0)?.addSink(remoteView)
-                }
-            }
-        )
-        rtcClient.initSurfaceView(remoteView)
-        rtcClient.initSurfaceView(localView)
-        rtcClient.startLocalVideoCapture(localView)
-
-        remoteViewText.text = "Creating signaling client..."
-        signalingClient = SignalingClient(createSignalingClientListener(), 10)
-
-        remoteViewText.text = "Waiting for connection..."
-        //callButton.setOnClickListener { rtcClient.call(sdpObserver) }
     }
 
     private fun requestCameraPermission(dialogShown: Boolean = false) {
@@ -141,9 +112,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun onCameraPermissionGranted() {
+        connectionText.text = "Creating RTC client..."
+        rtcClient = RtcClient(
+            application,
+            object : PeerConnectionObserver() {
+                override fun onIceCandidate(p0: IceCandidate?) {
+                    super.onIceCandidate(p0)
+                    signalingClient.send(p0)
+                    rtcClient.addIceCandidate(p0)
+                }
+            }
+        )
+        rtcClient.initSurfaceView(localView)
+        rtcClient.startLocalVideoCapture(localView)
+
+        connectionText.text = "Creating signaling client..."
+        signalingClient = SignalingClient(createSignalingClientListener())
+
+        connectionText.text = "Waiting for connection..."
+    }
+
     private fun onCameraPermissionDenied() {
-        remoteViewProgress.isGone = true
-        remoteViewText.text = "This app needs the camera to function"
+        connectionProgress.isGone = true
+        connectionText.text = "This app needs the camera to function"
         Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
     }
 
@@ -153,19 +145,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun createSignalingServerListener() = object : SignalingServerListener {
         override fun onConnectionEstablished() {
-            if (signalingClient.state == SignalingClient.State.WAITING_FOR_CLIENT) {
-                Log.d(TAG, "Another client connected, sending offer...")
-                remoteViewText.text = "Calling client..."
+            Log.d(TAG, "onConnectionEstablished called")
+            if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
+                Log.d(TAG, "Remote client connected, sending offer...")
+                connectionProgress.isGone = false
+                connectionText.text = "Calling remote client..."
                 rtcClient.offer(sdpObserver)
             }
         }
 
         override fun onConnectionAborted() {
+            Log.d(TAG, "onConnectionAborted called")
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
-                Log.d(TAG,"Another client disconnected")
-                signalingClient.state = SignalingClient.State.WAITING_FOR_CLIENT
-                remoteViewText.text = "Waiting for connection..."
-                //rtcClient.close()
+                Log.d(TAG,"Remote client disconnected")
+                connectionProgress.isGone = false
+                connectionText.text = "Waiting for connection..."
             }
         }
     }
@@ -178,37 +172,31 @@ class MainActivity : AppCompatActivity() {
 
         override fun onConnectionEstablished() {
             if (signalingServer.connections >= 2) {
-                signalingClient.state = SignalingClient.State.WAITING_FOR_ANSWER
                 Log.d(TAG, "Another client is already connected, sending offer...")
-                //remoteViewText.text = "Calling client..."
+                connectionProgress.isGone = false
+                connectionText.text = "Calling client..."
                 rtcClient.offer(sdpObserver)
-            }
-            else {
-                //signalingClient.state = SignalingClient.State.WAITING_FOR_CLIENT
-                //remoteViewText.text = "Waiting for connection..."
             }
         }
 
         override fun onConnectionFailed() {
-            signalingClient.state = SignalingClient.State.CONNECTION_FAILED
-            remoteViewProgress.isGone = true
-            remoteViewText.text = "Connection failed"
+            connectionProgress.isGone = true
+            connectionText.text = "Connection failed"
         }
 
         override fun onConnectionAborted() {
             signalingClient.state = SignalingClient.State.CONNECTION_ABORTED
-            remoteViewProgress.isGone = true
-            remoteViewText.text = "Connection aborted"
-            //rtcClient.close()
+            connectionProgress.isGone = true
+            connectionText.text = "Connection aborted"
         }
 
         override fun onOfferReceived(description: SessionDescription) {
-            Log.e(TAG, "This should not happen")
+            Log.e(TAG, "Offer received - this should not happen!")
         }
 
         override fun onAnswerReceived(description: SessionDescription) {
-            signalingClient.state = SignalingClient.State.WAITING_FOR_CONNECTION
-            remoteViewText.text = "Waiting for peer connection to be established"
+            connectionProgress.isGone = true
+            connectionText.isGone = true
             rtcClient.onRemoteSessionReceived(description)
         }
 

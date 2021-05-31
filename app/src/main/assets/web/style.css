@@ -6,13 +6,6 @@
  *  tree.
  */
 
-/*
- *  Copyright (c) 2015 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree.
- */
 .hidden {
   display: none;
 }
@@ -307,9 +300,6 @@ div.box {
     height: 90px;
     margin: 0 0 10px 0;
     width: calc(50% - 7px);
-  }
-  video#localVideo {
-    margin: 0 10px 20px 0;
   }
 
 }

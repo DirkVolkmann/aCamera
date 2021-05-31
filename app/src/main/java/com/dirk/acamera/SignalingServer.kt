@@ -4,27 +4,25 @@ import android.content.Context
 import android.util.Log
 import io.ktor.application.*
 import io.ktor.features.CallLogging
-import io.ktor.features.ContentNegotiation
-import io.ktor.gson.gson
 import io.ktor.http.cio.websocket.*
 import io.ktor.http.content.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
-import io.ktor.websocket.WebSocketServerSession
-import io.ktor.websocket.WebSockets
-import io.ktor.websocket.webSocket
+import io.ktor.websocket.*
+import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileOutputStream
 import java.time.Duration
 import java.util.*
+import kotlin.coroutines.CoroutineContext
 
 private const val TAG = "aCamera SignalingServer"
 
 class SignalingServer(
     private val listener: SignalingServerListener,
     private val context: Context
-) : Runnable {
+) : CoroutineScope {
 
     companion object {
         private const val ASSETS_FOLDER = "web"
@@ -37,72 +35,66 @@ class SignalingServer(
         private const val SOCKET_MASKING = false
     }
 
-    private val server = getServerInstance()
+    private val job = Job()
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.IO + job
+
     var connections = 0
 
-    override fun run() {
-        Log.d(TAG, "Running server thread")
-        copyWebResources()
-        server.start()
-    }
+    private var sessions = Collections.synchronizedMap(mutableMapOf<String, WebSocketServerSession>())
 
-    private fun getServerInstance(): NettyApplicationEngine {
+    private var resourcesReady = false
 
-        return embeddedServer(Netty, SOCKET_PORT) {
+    private val server = embeddedServer(Netty, SOCKET_PORT) {
 
-            install(CallLogging)
+        if (!resourcesReady) copyWebResources()
 
-            install(WebSockets) {
-                pingPeriod = Duration.ofSeconds(SOCKET_PING_PERIOD_SECONDS)
-                timeout = Duration.ofSeconds(SOCKET_TIMEOUT_SECONDS)
-                maxFrameSize = SOCKET_MAX_FRAME_SIZE
-                masking = SOCKET_MASKING
-            }
+        install(CallLogging)
 
-            install(ContentNegotiation) {
-                gson {
-                }
-            }
+        install(WebSockets) {
+            pingPeriod = Duration.ofSeconds(SOCKET_PING_PERIOD_SECONDS)
+            timeout = Duration.ofSeconds(SOCKET_TIMEOUT_SECONDS)
+            maxFrameSize = SOCKET_MAX_FRAME_SIZE
+            masking = SOCKET_MASKING
+        }
 
-            var connections = Collections.synchronizedMap(mutableMapOf<String, WebSocketServerSession>())
-
-            routing {
-                webSocket(path = SOCKET_PATH) {
-                    val id = UUID.randomUUID().toString()
-                    Log.d(TAG, "New client connected with ID: $id")
-                    connections[id] = this
-                    this@SignalingServer.connections = connections.size
-                    Log.d(TAG, "Connected clients: ${this@SignalingServer.connections}")
-                    listener.onConnectionEstablished()
-
-                    try {
-                        for (data in incoming) {
-                            if (data is Frame.Text) {
-                                val clients = connections.filter { it.key != id }
-                                val text = data.readText()
-                                clients.forEach {
-                                    Log.d(TAG, "Sending to: ${it.key}")
-                                    Log.d(TAG, "Sending: $text")
-                                    it.value.send(text)
-                                }
+        routing {
+            webSocket(path = SOCKET_PATH) {
+                // Add session
+                val id = UUID.randomUUID().toString()
+                addSession(this, id)
+                try {
+                    for (data in incoming) {
+                        if (data is Frame.Text) {
+                            val clients = sessions.filter { it.key != id }
+                            val text = data.readText()
+                            clients.forEach {
+                                Log.d(TAG, "Sending to: ${it.key}")
+                                Log.d(TAG, "Sending: $text")
+                                it.value.send(text)
                             }
                         }
-                    } finally {
-                        Log.d(TAG, "Removing client with ID: $id")
-                        connections.remove(id)
-                        this@SignalingServer.connections = connections.size
-                        Log.d(TAG, "Connected clients: ${this@SignalingServer.connections}")
-                        listener.onConnectionAborted()
                     }
+                } finally {
+                    removeSession(id)
                 }
-                static("/") {
-                    files(context.filesDir)
-                }
+            }
+            static("/") {
+                files(context.filesDir)
             }
         }
     }
 
-    private fun copyWebResources() {
+    init {
+        Log.d(TAG, "Running server thread")
+        start()
+    }
+
+    fun start() = launch {
+        server.start(wait = true)
+    }
+
+    private fun copyWebResources() = launch(Dispatchers.IO) {
         val files = context.assets.list(ASSETS_FOLDER)
 
         files?.forEach { path ->
@@ -114,5 +106,29 @@ class SignalingServer(
             outStream.close()
             input.close()
         }
+    }
+
+    private fun updateConnectionCount() {
+        connections = sessions.size
+        Log.d(TAG, "Connected clients: $connections")
+    }
+
+    private fun addSession(session: WebSocketServerSession, id: String) {
+        Log.d(TAG, "New client connected with ID: $id")
+        sessions[id] = session
+        updateConnectionCount()
+        launch(Dispatchers.Main) { listener.onConnectionEstablished() }
+    }
+
+    private fun removeSession(id: String) {
+        Log.d(TAG, "Removing client with ID: $id")
+        sessions.remove(id)
+        updateConnectionCount()
+        launch(Dispatchers.Main) { listener.onConnectionAborted() }
+    }
+
+    fun stop() {
+        server.stop(gracePeriodMillis = 5000, timeoutMillis = 10000)
+        job.complete()
     }
 }

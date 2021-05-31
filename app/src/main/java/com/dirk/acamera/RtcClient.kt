@@ -14,7 +14,7 @@ class RtcClient(
 
     companion object {
         private const val LOCAL_TRACK_ID = "acamera_track"
-        private const val LOCAL_STREAM_ID = "acamera_track"
+        private const val LOCAL_STREAM_ID = "acamera_stream"
     }
 
     private val rootEglBase: EglBase = EglBase.create()
@@ -25,7 +25,6 @@ class RtcClient(
 
     private val iceServer = listOf(
         PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
-        //PeerConnection.IceServer.builder("")
             .createIceServer()
     )
 
@@ -86,7 +85,7 @@ class RtcClient(
     }
 
     private fun PeerConnection.offer(sdpObserver: SdpObserver) {
-        Log.d(TAG, "Calling: $sdpObserver")
+        Log.d(TAG, "Calling remote client")
 
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
@@ -113,38 +112,7 @@ class RtcClient(
         }, constraints)
     }
 
-    private fun PeerConnection.answer(sdpObserver: SdpObserver) {
-        Log.d(TAG, "Answering: $sdpObserver")
-
-        val constraints = MediaConstraints().apply {
-            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
-        }
-
-        createAnswer(object : SdpObserver by sdpObserver {
-            override fun onCreateSuccess(p0: SessionDescription?) {
-                setLocalDescription(object : SdpObserver {
-                    override fun onSetFailure(p0: String?) {
-                    }
-
-                    override fun onSetSuccess() {
-                    }
-
-                    override fun onCreateSuccess(p0: SessionDescription?) {
-                    }
-
-                    override fun onCreateFailure(p0: String?) {
-                    }
-                }, p0)
-                sdpObserver.onCreateSuccess(p0)
-            }
-        }, constraints)
-    }
-
     fun offer(sdpObserver: SdpObserver) = peerConnection?.offer(sdpObserver)
-
-    fun answer(sdpObserver: SdpObserver) = peerConnection?.answer(sdpObserver)
-
-    //fun close() = peerConnection?.close()
 
     fun onRemoteSessionReceived(sessionDescription: SessionDescription) {
         Log.d(TAG, "Received remote session: ${sessionDescription.type}\n${sessionDescription.description}")

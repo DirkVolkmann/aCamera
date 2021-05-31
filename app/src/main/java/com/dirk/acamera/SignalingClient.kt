@@ -1,6 +1,5 @@
 package com.dirk.acamera
 
-import android.os.Handler
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonElement
@@ -12,24 +11,20 @@ import io.ktor.client.features.json.GsonSerializer
 import io.ktor.client.features.json.JsonFeature
 import io.ktor.client.features.websocket.WebSockets
 import io.ktor.client.features.websocket.ws
-import io.ktor.http.*
 import io.ktor.http.cio.websocket.Frame
 import io.ktor.http.cio.websocket.readText
-import io.ktor.util.KtorExperimentalAPI
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import org.webrtc.IceCandidate
-import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
-import java.lang.Exception
 import java.net.ConnectException
 import java.util.*
 
 private const val TAG = "aCamera SignalingClient"
 
+@ObsoleteCoroutinesApi
 class SignalingClient(
-    private val listener: SignalingClientListener,
-    private val retries: Int
+    private val listener: SignalingClientListener
 ) : CoroutineScope {
 
     // TODO: Connection parameters should be read from settings
@@ -38,7 +33,6 @@ class SignalingClient(
         private const val SOCKET_HOST = "127.0.0.1"
         private const val SOCKET_PORT = 8080
         private const val SOCKET_PATH = "/socket"
-        private const val RETRY_AFTER_MS = 15000L
 
         // JSON strings
         private const val JSON_TYPE = "type"
@@ -46,28 +40,27 @@ class SignalingClient(
         private const val JSON_SDP_ANDROID = "description"
         private const val JSON_SDP_MID = "sdpMid"
         private const val JSON_SDP_MLI = "sdpMLineIndex"
-
-        // Session types
-        private const val TYPE_ANSWER = "ANSWER"
-        private const val TYPE_OFFER = "OFFER"
     }
 
     enum class State {
-        INITIALIZING,           // Set internally
-        CONNECTING_TO_SERVER,   //
-        WAITING_FOR_CLIENT,     // Set by listener
-        WAITING_FOR_ANSWER,     //
-        WAITING_FOR_CONNECTION, //
-        CONNECTION_ESTABLISHED, //
-        CONNECTION_ABORTED,     //
-        CONNECTION_FAILED       //
+        INITIALIZING,
+        CONNECTING,
+        CONNECTION_ESTABLISHED,
+        CONNECTION_ABORTED,
+        CONNECTION_FAILED
     }
 
     var state = State.INITIALIZING
 
-    private val gson = Gson()
     private val job = Job()
-    override val coroutineContext = Dispatchers.IO + job
+    override val coroutineContext
+        get() = Dispatchers.IO + job
+
+    private val gson = Gson()
+
+    private var retriesDone = 0
+    private val retriesTotal = 10
+
 
     private val client = HttpClient(CIO) {
         install(WebSockets)
@@ -77,28 +70,20 @@ class SignalingClient(
     }
 
     // Use Broadcast Channel to send data to clients
-    @OptIn(ObsoleteCoroutinesApi::class)
     private val sendChannel = ConflatedBroadcastChannel<String>()
 
     init {
-        // Connect to Signaling Server and retry if server is not up yet
-        // TODO: Reconnecting should be done by watchdog
-        //for (tryNr in 1..retries) {
-            //if (isConnected) break
-            //Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$SOCKET_PORT$SOCKET_PATH' try $tryNr of $retries")
-            Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$SOCKET_PORT$SOCKET_PATH'")
-            connect()
-            //Thread.sleep(RETRY_AFTER_MS)
-        //}
-        //if (!isConnected) {
-        //    Log.d(TAG, "Connection to socket finally failed after $retries tries")
-        //    listener.onConnectionFailed()
-        //}
+        connect()
     }
 
-    @OptIn(ObsoleteCoroutinesApi::class)
-    private fun connect() = launch {
-        state = State.CONNECTING_TO_SERVER
+    @ObsoleteCoroutinesApi
+    fun connect() = launch {
+        state = State.CONNECTING
+
+        // TODO: Reconnecting should be done by watchdog
+        retriesDone++
+        Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$SOCKET_PORT$SOCKET_PATH' try $retriesDone of $retriesTotal")
+
         try {
             client.ws(
                 host = SOCKET_HOST,
@@ -106,8 +91,9 @@ class SignalingClient(
                 path = SOCKET_PATH
             ) {
                 // At this point the connection is established
+                state = State.CONNECTION_ESTABLISHED
                 Log.d(TAG, "Connection to socket established")
-                listener.onConnectionEstablished()
+                launch(Dispatchers.Main) { listener.onConnectionEstablished() }
                 val sendData = sendChannel.openSubscription()
 
                 // React to incoming and outgoing frames
@@ -171,12 +157,9 @@ class SignalingClient(
                                                 jsonObject,
                                                 SessionDescription::class.java
                                             )
-                                            /*if (sessionDescription.type == SessionDescription.Type.OFFER) {
-                                            Log.d(TAG, "Offer received")
-                                            listener.onOfferReceived(sessionDescription)
-                                        } else */if (sessionDescription.type == SessionDescription.Type.ANSWER) {
+                                            if (sessionDescription.type == SessionDescription.Type.ANSWER) {
                                                 Log.d(TAG, "Answer received")
-                                                listener.onAnswerReceived(sessionDescription)
+                                                launch(Dispatchers.Main) { listener.onAnswerReceived(sessionDescription) }
                                             }
                                         }
                                     }
@@ -184,18 +167,19 @@ class SignalingClient(
                             }
                         }
                     }
-                } catch (e: Throwable) {
-                    Log.e(TAG, "Something happened that upset me :'(", e)
-                    listener.onConnectionAborted()
+                } catch (error: Throwable) {
+                    state = State.CONNECTION_ABORTED
+                    Log.e(TAG, "Something happened that upset me :'(", error)
+                    launch(Dispatchers.Main) { listener.onConnectionAborted() }
                 }
             }
-        } catch (e: ConnectException) {
-            Log.i(TAG, "connection error", e)
-            listener.onConnectionFailed()
+        } catch (error: ConnectException) {
+            state = State.CONNECTION_FAILED
+            Log.i(TAG, "Connection error", error)
+            launch(Dispatchers.Main) { listener.onConnectionFailed() }
         }
     }
 
-    @OptIn(ObsoleteCoroutinesApi::class)
     fun send(dataObject: Any?) = runBlocking {
         sendChannel.send(gson.toJson(dataObject))
     }
