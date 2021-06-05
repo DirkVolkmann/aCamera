@@ -1,4 +1,4 @@
-package com.dirk.acamera
+package com.dirk.acamera.signaling
 
 import android.content.Context
 import android.util.Log
@@ -106,6 +106,8 @@ class SignalingServer(
             outStream.close()
             input.close()
         }
+
+        resourcesReady = true
     }
 
     private fun updateConnectionCount() {

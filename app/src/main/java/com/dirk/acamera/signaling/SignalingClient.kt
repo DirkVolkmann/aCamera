@@ -1,4 +1,4 @@
-package com.dirk.acamera
+package com.dirk.acamera.signaling
 
 import android.util.Log
 import com.google.gson.Gson

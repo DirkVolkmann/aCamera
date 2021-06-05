@@ -1,4 +1,4 @@
-package com.dirk.acamera
+package com.dirk.acamera.signaling
 
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription

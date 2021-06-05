@@ -1,4 +1,4 @@
-package com.dirk.acamera
+package com.dirk.acamera.rtc
 
 import org.webrtc.DataChannel
 import org.webrtc.IceCandidate

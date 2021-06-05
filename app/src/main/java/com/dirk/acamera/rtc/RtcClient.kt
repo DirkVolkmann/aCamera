@@ -1,4 +1,4 @@
-package com.dirk.acamera
+package com.dirk.acamera.rtc
 
 import android.app.Application
 import android.content.Context
