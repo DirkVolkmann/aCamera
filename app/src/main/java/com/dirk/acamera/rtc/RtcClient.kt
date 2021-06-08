@@ -13,11 +13,15 @@ class RtcClient(
 ) {
 
     companion object {
-        private const val LOCAL_TRACK_ID = "acamera_track"
-        private const val LOCAL_STREAM_ID = "acamera_stream"
+        private const val VIDEO_ID = "acamera_video"
+        private const val AUDIO_ID = "acamera_audio"
+        private const val STREAM_ID = "acamera_stream"
     }
 
     private val rootEglBase: EglBase = EglBase.create()
+
+    private var videoTrack: VideoTrack? = null
+    private var audioTrack: AudioTrack? = null
 
     init {
         initPeerConnectionFactory(context)
@@ -30,7 +34,8 @@ class RtcClient(
 
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
     private val videoCapturer by lazy { getVideoCapturer(context) }
-    private val localVideoSource by lazy { peerConnectionFactory.createVideoSource(false) }
+    private val videoSource by lazy { peerConnectionFactory.createVideoSource(false) }
+    private val audioSource by lazy { peerConnectionFactory.createAudioSource(MediaConstraints()) }
     private val peerConnection by lazy { buildPeerConnection(observer) }
 
     private fun initPeerConnectionFactory(context: Application) {
@@ -73,22 +78,53 @@ class RtcClient(
         init(rootEglBase.eglBaseContext, null)
     }
 
-    fun startLocalVideoCapture(localVideoOutput: SurfaceViewRenderer) {
+    fun startLocalVideoCapture(videoOutput: SurfaceViewRenderer) {
         val surfaceTextureHelper = SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext)
-        (videoCapturer as VideoCapturer).initialize(surfaceTextureHelper, localVideoOutput.context, localVideoSource.capturerObserver)
-        videoCapturer.startCapture(320, 240, 60)
-        val localVideoTrack = peerConnectionFactory.createVideoTrack(LOCAL_TRACK_ID, localVideoSource)
-        localVideoTrack.addSink(localVideoOutput)
-        val localStream = peerConnectionFactory.createLocalMediaStream(LOCAL_STREAM_ID)
-        localStream.addTrack(localVideoTrack)
-        peerConnection?.addStream(localStream)
+        (videoCapturer as VideoCapturer).initialize(surfaceTextureHelper, videoOutput.context, videoSource.capturerObserver)
+        videoCapturer.startCapture(10000, 10000, 30)
+
+        videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_ID, videoSource)
+        videoTrack!!.addSink(videoOutput)
+
+        audioTrack = peerConnectionFactory.createAudioTrack(AUDIO_ID, audioSource)
+
+        val stream = peerConnectionFactory.createLocalMediaStream(STREAM_ID)
+        stream.addTrack(videoTrack)
+        stream.addTrack(audioTrack)
+
+        peerConnection?.addStream(stream)
+    }
+
+    fun enableVideo() {
+        if (videoTrack != null) {
+            videoTrack!!.setEnabled(true)
+        }
+    }
+
+    fun disableVideo() {
+        if (videoTrack != null) {
+            videoTrack!!.setEnabled(false)
+        }
+    }
+
+    fun enableAudio() {
+        if (audioTrack != null) {
+            audioTrack!!.setEnabled(true)
+        }
+    }
+
+    fun disableAudio() {
+        if (audioTrack != null) {
+            audioTrack!!.setEnabled(false)
+        }
     }
 
     private fun PeerConnection.offer(sdpObserver: SdpObserver) {
-        Log.d(TAG, "Calling remote client")
+        Log.d(TAG, "Sending OFFER to remote client")
 
         val constraints = MediaConstraints().apply {
-            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "false"))
         }
 
         createOffer(object : SdpObserver by sdpObserver {
@@ -135,5 +171,9 @@ class RtcClient(
     fun addIceCandidate(iceCandidate: IceCandidate?) {
         Log.d(TAG, "Adding ICE candidate: ${iceCandidate?.toString()}")
         peerConnection?.addIceCandidate(iceCandidate)
+    }
+
+    fun destroy() {
+        peerConnection?.close()
     }
 }

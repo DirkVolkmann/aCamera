@@ -4,11 +4,13 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.isGone
@@ -39,8 +41,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var signalingServer: SignalingServer
 
     private lateinit var localView: SurfaceViewRenderer
-    private lateinit var connectionProgress: ProgressBar
-    private lateinit var connectionText: TextView
 
     private val sdpObserver = object : SimpleSdpObserver() {
         override fun onCreateSuccess(p0: SessionDescription?) {
@@ -54,18 +54,18 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         localView = findViewById(R.id.local_view)
-        connectionProgress = findViewById(R.id.connection_progress)
-        connectionText = findViewById(R.id.connection_text)
 
-        connectionText.text = "Creating signaling server..."
+        setButtonListeners()
+
+        showConnectionBox("Creating signaling server...")
         signalingServer = SignalingServer(createSignalingServerListener(), this)
-        connectionText.text = "Starting signaling server..."
+        showConnectionBox("Starting signaling server...")
     }
 
     override fun onResume() {
         super.onResume()
 
-        connectionText.text = "Checking camera permissions..."
+        showConnectionBox("Checking camera permissions...")
         checkCameraPermission()
     }
 
@@ -76,8 +76,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Views
+     */
+
+    private fun showConnectionBox(text: String, showProgressBar: Boolean = true) {
+        findViewById<TextView>(R.id.connection_text).text = text
+        findViewById<CardView>(R.id.connection_container).isGone = (!showProgressBar)
+        findViewById<CardView>(R.id.connection_container).isGone = false
+    }
+
+    private fun hideConnectionBox() {
+        findViewById<CardView>(R.id.connection_container).isGone = true
+    }
+
+    /**
      * Permissions
      */
+
+    // TODO: Move permission stuff to own class/fragment
 
     private fun checkCameraPermission() {
         if (ContextCompat.checkSelfPermission(this, CAMERA_PERMISSION) != PackageManager.PERMISSION_GRANTED) {
@@ -120,7 +136,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onCameraPermissionGranted() {
-        connectionText.text = "Creating RTC client..."
+        showConnectionBox("Creating RTC client...")
         rtcClient = RtcClient(
             application,
             object : PeerConnectionObserver() {
@@ -134,16 +150,14 @@ class MainActivity : AppCompatActivity() {
         rtcClient.initSurfaceView(localView)
         rtcClient.startLocalVideoCapture(localView)
 
-        connectionText.text = "Creating local signaling client..."
+        showConnectionBox("Creating local signaling client...")
         signalingClient = SignalingClient(createSignalingClientListener())
 
-        connectionText.text = "Waiting for remote client..."
+        showConnectionBox("Waiting for remote client...")
     }
 
     private fun onCameraPermissionDenied() {
-        connectionProgress.isGone = true
-        connectionText.isGone = false
-        connectionText.text = "This app needs the camera to function"
+        showConnectionBox("This app needs the camera to function")
         Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
     }
 
@@ -158,9 +172,7 @@ class MainActivity : AppCompatActivity() {
             if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
                 Log.d(TAG, "Remote client connected, sending offer...")
 
-                connectionProgress.isGone = false
-                connectionText.isGone = false
-                connectionText.text = "Calling remote client..."
+                showConnectionBox("Calling remote client...")
 
                 rtcClient.offer(sdpObserver)
             }
@@ -172,9 +184,7 @@ class MainActivity : AppCompatActivity() {
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
                 Log.d(TAG,"Remote client disconnected")
 
-                connectionProgress.isGone = false
-                connectionText.isGone = false
-                connectionText.text = "Waiting for remote client..."
+                showConnectionBox("Waiting for remote client...")
             }
         }
     }
@@ -189,24 +199,18 @@ class MainActivity : AppCompatActivity() {
             if (signalingServer.connections >= 2) {
                 Log.d(TAG, "Another client is already connected, sending offer...")
 
-                connectionProgress.isGone = false
-                connectionText.isGone = false
-                connectionText.text = "Calling remote client..."
+                showConnectionBox("Calling remote client...")
 
                 rtcClient.offer(sdpObserver)
             }
         }
 
         override fun onConnectionFailed() {
-            connectionProgress.isGone = true
-            connectionText.isGone = false
-            connectionText.text = "Connection failed"
+            showConnectionBox("Connection failed", false)
         }
 
         override fun onConnectionAborted() {
-            connectionProgress.isGone = true
-            connectionText.isGone = false
-            connectionText.text = "Connection aborted"
+            showConnectionBox("Connection aborted", false)
         }
 
         override fun onOfferReceived(description: SessionDescription) {
@@ -214,8 +218,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onAnswerReceived(description: SessionDescription) {
-            connectionProgress.isGone = true
-            connectionText.isGone = true
+            hideConnectionBox()
 
             rtcClient.onRemoteSessionReceived(description)
         }
@@ -230,4 +233,39 @@ class MainActivity : AppCompatActivity() {
      */
 
     // TODO: watchdog restarts signaling server and client when they crash
+
+    /**
+     * Media
+     */
+
+    // TODO: Move to separate file
+
+    private var isVideoEnabled = true
+    private var isAudioEnabled = true
+
+    private fun setButtonListeners() {
+        val audioButton = findViewById<Button>(R.id.button_audio)
+        val videoButton = findViewById<Button>(R.id.button_video)
+
+        audioButton.setOnClickListener {
+            isAudioEnabled = if (isAudioEnabled) {
+                rtcClient.disableAudio()
+                false
+            } else {
+                rtcClient.enableAudio()
+                true
+            }
+        }
+
+        videoButton.setOnClickListener {
+            isVideoEnabled = if (isVideoEnabled) {
+                rtcClient.disableVideo()
+                false
+            } else {
+                rtcClient.enableVideo()
+                true
+            }
+        }
+    }
+
 }

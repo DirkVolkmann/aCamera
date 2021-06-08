@@ -16,7 +16,10 @@ const webSocketUrl = protocol + "://" + host + ":" + port + path;
 
 let peerConnection;
 const configuration = {};
-const offerOptions = { offerToReceiveVideo: 1 };
+const offerOptions = {
+    offerToReceiveVideo: 1,
+    offerToReceiveAudio: 1
+};
 
 /**
  * Media stream configuration
@@ -270,7 +273,7 @@ async function onIceStateChanged(event) {
 function remoteStreamReceived(event) {
     if (remoteVideo.srcObject !== event.streams[0]) {
         remoteVideo.srcObject = event.streams[0];
-        console.log('Received remote stream!');
+        console.log('Received remote stream: ', event);
     }
 }
 
