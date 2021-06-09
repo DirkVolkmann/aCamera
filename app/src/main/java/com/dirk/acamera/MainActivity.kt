@@ -3,11 +3,10 @@ package com.dirk.acamera
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.text.Html
+import android.text.Html.fromHtml
 import android.util.Log
-import android.widget.Button
-import android.widget.ProgressBar
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
@@ -22,6 +21,7 @@ import com.dirk.acamera.signaling.SignalingClientListener
 import com.dirk.acamera.signaling.SignalingServer
 import com.dirk.acamera.signaling.SignalingServerListener
 import kotlinx.coroutines.ObsoleteCoroutinesApi
+import org.w3c.dom.Text
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceViewRenderer
@@ -59,13 +59,12 @@ class MainActivity : AppCompatActivity() {
 
         showConnectionBox("Creating signaling server...")
         signalingServer = SignalingServer(createSignalingServerListener(), this)
-        showConnectionBox("Starting signaling server...")
     }
 
     override fun onResume() {
         super.onResume()
 
-        showConnectionBox("Checking camera permissions...")
+        showConnectionBox("Checking permissions...")
         checkCameraPermission()
     }
 
@@ -79,10 +78,25 @@ class MainActivity : AppCompatActivity() {
      * Views
      */
 
-    private fun showConnectionBox(text: String, showProgressBar: Boolean = true) {
-        findViewById<TextView>(R.id.connection_text).text = text
-        findViewById<CardView>(R.id.connection_container).isGone = (!showProgressBar)
-        findViewById<CardView>(R.id.connection_container).isGone = false
+    private fun showConnectionBox(text: String, textSecondary: String? = null, showProgressBar: Boolean = true) {
+        val connText = findViewById<TextView>(R.id.connection_text)
+        val connTextSec = findViewById<TextView>(R.id.connection_text_secondaray)
+        val connProg = findViewById<ProgressBar>(R.id.connection_progress)
+        val connCon = findViewById<CardView>(R.id.connection_container)
+
+        connText.text = text
+        connText.isGone = false
+
+        if (textSecondary != null) {
+            connTextSec.text = textSecondary
+            connTextSec.isGone = false
+        } else {
+            connTextSec.isGone = true
+        }
+
+        connProg.isGone = (!showProgressBar)
+
+        connCon.isGone = false
     }
 
     private fun hideConnectionBox() {
@@ -153,7 +167,11 @@ class MainActivity : AppCompatActivity() {
         showConnectionBox("Creating local signaling client...")
         signalingClient = SignalingClient(createSignalingClientListener())
 
-        showConnectionBox("Waiting for remote client...")
+        val streamUrl: String = "172.16.42.3:8080"
+        showConnectionBox(
+            "Waiting for remote client...",
+            "&#8226; Start a web browser on the device you are streaming to<br>&#8226; Type the following URL in the address bar: $streamUrl"
+        )
     }
 
     private fun onCameraPermissionDenied() {
@@ -206,11 +224,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onConnectionFailed() {
-            showConnectionBox("Connection failed", false)
+            showConnectionBox("Connection failed", showProgressBar = false)
         }
 
         override fun onConnectionAborted() {
-            showConnectionBox("Connection aborted", false)
+            showConnectionBox("Connection aborted", showProgressBar = false)
         }
 
         override fun onOfferReceived(description: SessionDescription) {
@@ -244,14 +262,21 @@ class MainActivity : AppCompatActivity() {
     private var isAudioEnabled = true
 
     private fun setButtonListeners() {
-        val audioButton = findViewById<Button>(R.id.button_audio)
-        val videoButton = findViewById<Button>(R.id.button_video)
+        val audioButton = findViewById<ImageView>(R.id.button_audio)
+        val videoButton = findViewById<ImageView>(R.id.button_video)
+
+        val audioButtonEnabledSrc = R.drawable.ic_mic_black_24dp
+        val audioButtonDisabledSrc = R.drawable.ic_mic_off_black_24dp
+        val videoButtonEnabledSrc = R.drawable.ic_videocam_black_24dp
+        val videoButtonDisabledSrc = R.drawable.ic_videocam_off_black_24dp
 
         audioButton.setOnClickListener {
             isAudioEnabled = if (isAudioEnabled) {
+                audioButton.setImageResource(audioButtonDisabledSrc)
                 rtcClient.disableAudio()
                 false
             } else {
+                audioButton.setImageResource(audioButtonEnabledSrc)
                 rtcClient.enableAudio()
                 true
             }
@@ -259,9 +284,11 @@ class MainActivity : AppCompatActivity() {
 
         videoButton.setOnClickListener {
             isVideoEnabled = if (isVideoEnabled) {
+                videoButton.setImageResource(videoButtonDisabledSrc)
                 rtcClient.disableVideo()
                 false
             } else {
+                videoButton.setImageResource(videoButtonEnabledSrc)
                 rtcClient.enableVideo()
                 true
             }

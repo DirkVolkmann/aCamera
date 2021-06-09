@@ -4,6 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:clickable="true"
+    android:focusable="true"
     tools:context=".MainActivity">
 
     <org.webrtc.SurfaceViewRenderer
@@ -30,6 +32,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="16dp"
+            android:visibility="visible"
             tools:visibility="visible">
 
             <ProgressBar
@@ -38,50 +41,83 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
                 android:indeterminate="true"
-                android:visibility="visible"
+                android:visibility="gone"
                 tools:visibility="visible" />
 
             <TextView
                 android:id="@+id/connection_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minHeight="10dp"
                 android:textAlignment="center"
+                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
                 android:visibility="visible"
                 tools:text="Connection status"
                 tools:visibility="visible" />
+
+            <TextView
+                android:id="@+id/connection_text_secondaray"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                android:visibility="gone"
+                tools:text="Further information to the current status. This is usually a little bit longer text."
+                tools:visibility="visible" />
+
         </LinearLayout>
 
     </androidx.cardview.widget.CardView>
 
     <LinearLayout
         android:id="@+id/button_container"
-        style="@android:style/ButtonBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:baselineAligned="true"
+        android:gravity="center"
         android:orientation="horizontal"
+        android:padding="32dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <Button
-            android:id="@+id/button_audio"
-            style="@android:style/ButtonBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:layout_weight="1"
-            android:text="Audio" />
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
 
-        <Button
-            android:id="@+id/button_video"
-            style="@android:style/ButtonBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:layout_weight="1"
-            android:paddingHorizontal="16dp"
-            android:text="Video" />
+            <ImageView
+                android:id="@+id/button_audio"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_gravity="center"
+                android:background="@drawable/circle_background"
+                android:backgroundTint="@color/design_default_color_primary"
+                android:elevation="2dp"
+                android:padding="8dp"
+                android:stateListAnimator="@animator/mtrl_btn_state_list_anim"
+                app:srcCompat="@drawable/ic_mic_black_24dp"
+                app:tint="@color/design_default_color_on_primary" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <ImageView
+                android:id="@+id/button_video"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_gravity="center"
+                android:background="@drawable/circle_background"
+                android:backgroundTint="@color/design_default_color_primary"
+                android:elevation="2dp"
+                android:padding="8dp"
+                android:stateListAnimator="@animator/mtrl_btn_state_list_anim"
+                app:srcCompat="@drawable/ic_videocam_black_24dp"
+                app:tint="@color/design_default_color_on_primary" />
+        </FrameLayout>
+
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
