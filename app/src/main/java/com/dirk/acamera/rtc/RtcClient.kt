@@ -81,7 +81,7 @@ class RtcClient(
     fun startLocalVideoCapture(videoOutput: SurfaceViewRenderer) {
         val surfaceTextureHelper = SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext)
         (videoCapturer as VideoCapturer).initialize(surfaceTextureHelper, videoOutput.context, videoSource.capturerObserver)
-        videoCapturer.startCapture(10000, 10000, 30)
+        videoCapturer.startCapture(1280, 720, 30)
 
         videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_ID, videoSource)
         videoTrack!!.addSink(videoOutput)
