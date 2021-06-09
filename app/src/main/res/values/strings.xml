@@ -1,5 +1,24 @@
 <resources>
     <string name="app_name">aCamera</string>
+
+    <!-- Connection Status Messages -->
+    <string name="conn_status_signaling_server">Creating Signaling Server…</string>
+    <string name="conn_status_signaling_client">Creating Local Signaling Client…</string>>
+    <string name="conn_status_rtc_client">Creating RTC Client…</string>
+    <string name="conn_status_remote_client">Searching Remote Client…</string>
+    <string name="conn_status_connecting">Connecting to Remote Client…</string>
+    <string name="conn_status_failed">Connection Failed</string>
+    <string name="conn_status_aborted">Connection Aborted</string>
+
+    <!-- Permission Messages -->
+    <string name="permission_status_check">Checking Permissions…</string>
+    <string name="permission_required">Camera Permission Required</string>
+    <string name="permission_denied">Camera Permission Denied</string>
+    <string name="permission_required_info">This app needs the camera to function</string>
+    <string name="permission_allow">Allow</string>
+    <string name="permission_deny">Deny</string>
+
+
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <!-- Preference Titles -->

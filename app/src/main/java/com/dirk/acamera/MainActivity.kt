@@ -5,6 +5,10 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.text.Html
 import android.text.Html.fromHtml
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.BulletSpan
 import android.util.Log
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
@@ -57,14 +61,14 @@ class MainActivity : AppCompatActivity() {
 
         setButtonListeners()
 
-        showConnectionBox("Creating signaling server...")
+        showConnectionBox(getString(R.string.conn_status_signaling_server))
         signalingServer = SignalingServer(createSignalingServerListener(), this)
     }
 
     override fun onResume() {
         super.onResume()
 
-        showConnectionBox("Checking permissions...")
+        showConnectionBox(getString(R.string.permission_status_check))
         checkCameraPermission()
     }
 
@@ -78,9 +82,10 @@ class MainActivity : AppCompatActivity() {
      * Views
      */
 
-    private fun showConnectionBox(text: String, textSecondary: String? = null, showProgressBar: Boolean = true) {
+    private fun showConnectionBox(text: CharSequence, textSecondary: CharSequence? = null, textNotice: CharSequence? = null, showProgressBar: Boolean = true) {
         val connText = findViewById<TextView>(R.id.connection_text)
         val connTextSec = findViewById<TextView>(R.id.connection_text_secondaray)
+        val connTextNotice = findViewById<TextView>(R.id.connection_text_notice)
         val connProg = findViewById<ProgressBar>(R.id.connection_progress)
         val connCon = findViewById<CardView>(R.id.connection_container)
 
@@ -94,6 +99,13 @@ class MainActivity : AppCompatActivity() {
             connTextSec.isGone = true
         }
 
+        if (textNotice != null) {
+            connTextNotice.text = textNotice
+            connTextNotice.isGone = false
+        } else {
+            connTextNotice.isGone = true
+        }
+
         connProg.isGone = (!showProgressBar)
 
         connCon.isGone = false
@@ -101,6 +113,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun hideConnectionBox() {
         findViewById<CardView>(R.id.connection_container).isGone = true
+    }
+
+    private fun buildBulletList(stringArrayId: Int, gapWidth: Int = BulletSpan.STANDARD_GAP_WIDTH): CharSequence {
+        val array = resources.getStringArray(stringArrayId)
+        val sStringBuilder = SpannableStringBuilder()
+        array.forEach {
+            val sString = SpannableString(it)
+            sString.setSpan(BulletSpan(gapWidth), 0, sString.length, Spanned.SPAN_INCLUSIVE_EXCLUSIVE)
+            sStringBuilder.append(sString)
+            sStringBuilder.append("\n")
+        }
+        sStringBuilder.delete(sStringBuilder.length - 1, sStringBuilder.length) // delete last "\n"
+        return sStringBuilder
     }
 
     /**
@@ -127,13 +152,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun showPermissionRationaleDialog() {
         AlertDialog.Builder(this)
-            .setTitle("Camera Permission Required")
-            .setMessage("This app needs the camera to function")
-            .setPositiveButton("Grant") { dialog, _ ->
+            .setTitle(getString(R.string.permission_required))
+            .setMessage(getString(R.string.permission_required_info))
+            .setPositiveButton(getString(R.string.permission_allow)) { dialog, _ ->
                 dialog.dismiss()
                 requestCameraPermission(true)
             }
-            .setNegativeButton("Deny") { dialog, _ ->
+            .setNegativeButton(getString(R.string.permission_deny)) { dialog, _ ->
                 dialog.dismiss()
                 onCameraPermissionDenied()
             }
@@ -150,7 +175,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onCameraPermissionGranted() {
-        showConnectionBox("Creating RTC client...")
+        showConnectionBox(getString(R.string.conn_status_rtc_client))
         rtcClient = RtcClient(
             application,
             object : PeerConnectionObserver() {
@@ -164,19 +189,17 @@ class MainActivity : AppCompatActivity() {
         rtcClient.initSurfaceView(localView)
         rtcClient.startLocalVideoCapture(localView)
 
-        showConnectionBox("Creating local signaling client...")
+        showConnectionBox(getString(R.string.conn_status_signaling_client))
         signalingClient = SignalingClient(createSignalingClientListener())
 
-        val streamUrl: String = "172.16.42.3:8080"
-        showConnectionBox(
-            "Waiting for remote client...",
-            "&#8226; Start a web browser on the device you are streaming to<br>&#8226; Type the following URL in the address bar: $streamUrl"
-        )
+        val streamUrl = "172.16.42.3:8080"
+        val bulletList = SpannableStringBuilder(buildBulletList(R.array.how_to_connect, 40))
+        showConnectionBox(getString(R.string.conn_status_remote_client), bulletList, streamUrl)
     }
 
     private fun onCameraPermissionDenied() {
-        showConnectionBox("This app needs the camera to function")
-        Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
+        showConnectionBox(getString(R.string.permission_required_info))
+        Toast.makeText(this, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
     }
 
     /**
@@ -190,7 +213,7 @@ class MainActivity : AppCompatActivity() {
             if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
                 Log.d(TAG, "Remote client connected, sending offer...")
 
-                showConnectionBox("Calling remote client...")
+                showConnectionBox(getString(R.string.conn_status_connecting))
 
                 rtcClient.offer(sdpObserver)
             }
@@ -202,7 +225,7 @@ class MainActivity : AppCompatActivity() {
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
                 Log.d(TAG,"Remote client disconnected")
 
-                showConnectionBox("Waiting for remote client...")
+                showConnectionBox(getString(R.string.conn_status_remote_client))
             }
         }
     }
@@ -217,18 +240,18 @@ class MainActivity : AppCompatActivity() {
             if (signalingServer.connections >= 2) {
                 Log.d(TAG, "Another client is already connected, sending offer...")
 
-                showConnectionBox("Calling remote client...")
+                showConnectionBox(getString(R.string.conn_status_connecting))
 
                 rtcClient.offer(sdpObserver)
             }
         }
 
         override fun onConnectionFailed() {
-            showConnectionBox("Connection failed", showProgressBar = false)
+            showConnectionBox(getString(R.string.conn_status_failed), showProgressBar = false)
         }
 
         override fun onConnectionAborted() {
-            showConnectionBox("Connection aborted", showProgressBar = false)
+            showConnectionBox(getString(R.string.conn_status_aborted), showProgressBar = false)
         }
 
         override fun onOfferReceived(description: SessionDescription) {

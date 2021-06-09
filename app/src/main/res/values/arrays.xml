@@ -1,4 +1,10 @@
 <resources>
+    <!-- Connecting to the phone -->
+    <string-array name="how_to_connect">
+        <item>Start a web browser on the device you are streaming to</item>
+        <item>Type the following in the address bar</item>
+    </string-array>
+
     <!-- Reply Preference -->
     <string-array name="reply_entries">
         <item>Reply</item>
