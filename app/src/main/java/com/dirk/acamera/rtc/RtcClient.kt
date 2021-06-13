@@ -2,10 +2,8 @@ package com.dirk.acamera.rtc
 
 import android.app.Application
 import android.content.Context
-import android.provider.MediaStore
 import android.util.Log
 import org.webrtc.*
-import kotlin.reflect.typeOf
 
 private const val TAG = "aCamera RtcClient"
 
