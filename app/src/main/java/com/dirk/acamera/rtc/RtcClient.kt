@@ -133,16 +133,22 @@ class RtcClient(
             videoOutput.context,
             videoSource.capturerObserver
         )
-        videoCapturer.startCapture(1280, 720, 30)
+        startVideo()
 
         videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_ID, videoSource).apply {
             addSink(videoOutput)
         }
     }
 
+    private fun startVideo() {
+        videoCapturer.startCapture(1280, 720, 30)
+    }
+
     fun enableVideo(videoOutput: SurfaceViewRenderer) {
         if (videoTrack == null) {
             initVideo(videoOutput)
+        } else {
+            startVideo()
         }
         videoTrack?.setEnabled(true)
 

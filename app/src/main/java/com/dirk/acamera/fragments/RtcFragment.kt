@@ -97,6 +97,7 @@ class RtcFragment : Fragment() {
         super.onDestroyView()
         Log.d(TAG, "onDestroyView called")
 
+        rtcClient.destroy()
         signalingClient.destroy()
         signalingServer.stop()
     }
