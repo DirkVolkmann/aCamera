@@ -178,9 +178,10 @@ class RtcFragment : Fragment() {
         Log.d(TAG, "Camera permission was granted")
         if (isVideoEnabled) {
             enableVideo()
-            val streamUrl = "172.16.42.3:8080"
+            val streamUrl = "172.16.42.3:8080" // TODO: Read IP from device and port from app settings
             val bulletList = SpannableStringBuilder(buildBulletList(resources.getStringArray(R.array.how_to_connect), 40))
-            showConnectionBox(activityGetString(R.string.conn_status_remote_client), bulletList, streamUrl)
+            if(signalingClient.state != SignalingClient.State.CONNECTION_ESTABLISHED)
+                showConnectionBox(activityGetString(R.string.conn_status_remote_client), bulletList, streamUrl)
         } else {
             Log.d(TAG, "Video disabled, noting to do")
         }
