@@ -69,8 +69,8 @@ class SignalingServer(
                             val clients = sessions.filter { it.key != id }
                             val text = data.readText()
                             clients.forEach {
-                                Log.d(TAG, "Sending to: ${it.key}")
-                                Log.d(TAG, "Sending: $text")
+                                Log.v(TAG, "Sending to: ${it.key}")
+                                Log.v(TAG, "Sending: $text")
                                 it.value.send(text)
                             }
                         }
@@ -116,14 +116,14 @@ class SignalingServer(
     }
 
     private fun addSession(session: WebSocketServerSession, id: String) {
-        Log.d(TAG, "New client connected with ID: $id")
+        Log.v(TAG, "New client connected with ID: $id")
         sessions[id] = session
         updateConnectionCount()
         launch(Dispatchers.Main) { listener.onConnectionEstablished() }
     }
 
     private fun removeSession(id: String) {
-        Log.d(TAG, "Removing client with ID: $id")
+        Log.v(TAG, "Removing client with ID: $id")
         sessions.remove(id)
         updateConnectionCount()
         launch(Dispatchers.Main) { listener.onConnectionAborted() }

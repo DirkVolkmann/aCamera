@@ -112,7 +112,7 @@ class SignalingClient(
                             if (frame is Frame.Text) {
                                 // Get text from received data
                                 val data = frame.readText()
-                                Log.d(TAG, "Received: $data")
+                                Log.v(TAG, "Received: $data")
                                 // Data could be "null"
                                 val jsonElement: JsonElement = gson.fromJson(data, JsonElement::class.java)
                                 if (jsonElement !is JsonNull) {
@@ -125,7 +125,7 @@ class SignalingClient(
                                                 JSON_SDP_MLI
                                             )
                                         ) {
-                                            Log.d(TAG, "ICE candidate received")
+                                            Log.d(TAG, "Received message of type 'ICE candidate'")
                                             listener.onIceCandidateReceived(
                                                 gson.fromJson(
                                                     data,
@@ -160,7 +160,7 @@ class SignalingClient(
                                                 SessionDescription::class.java
                                             )
                                             if (sessionDescription.type == SessionDescription.Type.ANSWER) {
-                                                Log.d(TAG, "Answer received")
+                                                Log.d(TAG, "Received message of type '" + SessionDescription.Type.ANSWER + "'")
                                                 launch(Dispatchers.Main) { listener.onAnswerReceived(sessionDescription) }
                                             }
                                         }
@@ -177,7 +177,8 @@ class SignalingClient(
             }
         } catch (error: ConnectException) {
             state = State.CONNECTION_FAILED
-            Log.i(TAG, "Connection error", error)
+            Log.d(TAG, "Failed to connect at try $retriesDone of $retriesTotal")
+            Log.v(TAG, "Connection error: ", error)
             launch(Dispatchers.Main) { listener.onConnectionFailed() }
         }
     }

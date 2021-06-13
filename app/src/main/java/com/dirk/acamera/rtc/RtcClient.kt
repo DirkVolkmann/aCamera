@@ -121,6 +121,8 @@ class RtcClient(
                 }
             }
         }
+
+        Log.d(TAG, "Reloading stream done")
     }
 
     /**
@@ -185,27 +187,34 @@ class RtcClient(
      */
 
     private fun PeerConnection.offer(sdpObserver: SdpObserver) {
-        Log.d(TAG, "Sending OFFER to remote client")
-
+        Log.d(TAG, "Adding constraints to 'OFFER'...")
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "false"))
         }
+        Log.d(TAG, "Adding constraints to 'OFFER' done")
 
+        Log.d(TAG, "Creating 'OFFER'...")
         createOffer(object : SdpObserver by sdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
+                Log.d(TAG, "Creating 'OFFER' success")
 
+                Log.d(TAG, "Setting local description...")
                 setLocalDescription(object : SdpObserver {
                     override fun onSetFailure(p0: String?) {
+                        Log.d(TAG, "Setting local description failed")
                     }
 
                     override fun onSetSuccess() {
+                        Log.d(TAG, "Setting local description success")
                     }
 
                     override fun onCreateSuccess(p0: SessionDescription?) {
+                        Log.d(TAG, "Creating local description success")
                     }
 
                     override fun onCreateFailure(p0: String?) {
+                        Log.d(TAG, "Creating local description failed")
                     }
                 }, desc)
                 sdpObserver.onCreateSuccess(desc)
@@ -216,25 +225,31 @@ class RtcClient(
     fun offer(sdpObserver: SdpObserver) = peerConnection?.offer(sdpObserver)
 
     fun onRemoteSessionReceived(sessionDescription: SessionDescription) {
-        Log.d(TAG, "Received remote session: ${sessionDescription.type}\n${sessionDescription.description}")
+        Log.d(TAG, "Received '${sessionDescription.type}'")
+        Log.v(TAG, sessionDescription.description)
 
+        Log.d(TAG, "Setting remote description...")
         peerConnection?.setRemoteDescription(object : SdpObserver {
             override fun onSetFailure(p0: String?) {
+                Log.d(TAG, "Setting remote description failed")
             }
 
             override fun onSetSuccess() {
+                Log.d(TAG, "Setting remote description success")
             }
 
             override fun onCreateSuccess(p0: SessionDescription?) {
+                Log.d(TAG, "Creating remote description success")
             }
 
             override fun onCreateFailure(p0: String?) {
+                Log.d(TAG, "Creating remote description failed")
             }
         }, sessionDescription)
     }
 
     fun addIceCandidate(iceCandidate: IceCandidate?) {
-        Log.d(TAG, "Adding ICE candidate: ${iceCandidate?.toString()}")
+        Log.v(TAG, "Adding ICE candidate: ${iceCandidate?.toString()}")
         peerConnection?.addIceCandidate(iceCandidate)
     }
 

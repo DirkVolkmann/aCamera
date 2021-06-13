@@ -13,8 +13,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.content.ContextCompat
 import androidx.core.view.isGone
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.Navigation
 import com.dirk.acamera.*
 import com.dirk.acamera.rtc.PeerConnectionObserver
@@ -25,8 +25,11 @@ import com.dirk.acamera.signaling.SignalingClientListener
 import com.dirk.acamera.signaling.SignalingServer
 import com.dirk.acamera.signaling.SignalingServerListener
 import com.dirk.acamera.utils.buildBulletList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ObsoleteCoroutinesApi
+import kotlinx.coroutines.launch
 import org.webrtc.IceCandidate
+import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceViewRenderer
 
@@ -43,6 +46,9 @@ class RtcFragment : Fragment() {
     private lateinit var rtcClient: RtcClient
     private lateinit var signalingClient: SignalingClient
     private lateinit var signalingServer: SignalingServer
+
+    private lateinit var streamUrl: String
+    private lateinit var howToConnectList: SpannableStringBuilder
 
     private var isVideoEnabled = true
     private var isAudioEnabled = true
@@ -68,11 +74,20 @@ class RtcFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         Log.d(TAG, "onViewCreated called")
 
+        // Initialize views
+
         container = view as ConstraintLayout
 
         localView = container.findViewById(R.id.local_view)
         audioButton = container.findViewById(R.id.button_audio)
         videoButton = container.findViewById(R.id.button_video)
+
+        // Get values from settings or resources
+
+        streamUrl = "172.16.42.3:8080" // TODO: Read IP from device and port from app settings
+        howToConnectList = SpannableStringBuilder(buildBulletList(resources.getStringArray(R.array.how_to_connect), 40))
+
+        // Create networking services
 
         showConnectionBox(getString(R.string.conn_status_signaling_server))
         signalingServer = SignalingServer(createSignalingServerListener(), requireContext())
@@ -100,7 +115,7 @@ class RtcFragment : Fragment() {
         rtcClient.destroy()
         signalingClient.destroy()
         signalingServer.stop()
-        hideConnectionBox()
+        showConnectionBox("Stopping services done")
     }
 
     /**
@@ -202,6 +217,7 @@ class RtcFragment : Fragment() {
                 Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
                     RtcFragmentDirections.actionRtcToPermission()
                 )
+                Log.d(TAG, "Checking permissions done")
             } else {
                 Log.d(TAG, "All permissions granted")
             }
@@ -227,11 +243,9 @@ class RtcFragment : Fragment() {
         hideLocalViewMessage()
         setVideoButtonListener()
         if (isVideoEnabled) {
-            enableVideo()
-            val streamUrl = "172.16.42.3:8080" // TODO: Read IP from device and port from app settings
-            val bulletList = SpannableStringBuilder(buildBulletList(resources.getStringArray(R.array.how_to_connect), 40))
             if(signalingClient.state != SignalingClient.State.CONNECTION_ESTABLISHED)
-                showConnectionBox(getString(R.string.conn_status_remote_client), bulletList, streamUrl)
+                showConnectionBox(getString(R.string.conn_status_remote_client), howToConnectList, streamUrl)
+            enableVideo()
         } else {
             disableVideo() // Also changes button style
         }
@@ -261,7 +275,7 @@ class RtcFragment : Fragment() {
     }
 
     /**
-     * RTC Client
+     * Peer Connection Observer
      */
 
     private fun createPeerConnectionObserver() = object : PeerConnectionObserver() {
@@ -270,7 +284,31 @@ class RtcFragment : Fragment() {
             signalingClient.send(p0)
             rtcClient.addIceCandidate(p0)
         }
+
+        override fun onConnectionChange(newState: PeerConnection.PeerConnectionState?) {
+            super.onConnectionChange(newState)
+            Log.d(TAG, "New connection state: $newState")
+            if (newState == PeerConnection.PeerConnectionState.CONNECTED) {
+                lifecycleScope.launchWhenStarted { hideConnectionBox() }
+            }
+        }
+
+        override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
+            super.onSignalingChange(p0)
+            Log.d(TAG, "New signaling state: $p0")
+        }
+
+        override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
+            super.onIceConnectionChange(p0)
+            Log.d(TAG, "New ICE connections state: $p0")
+        }
     }
+
+    /**
+     * RTC Client
+     */
+
+
 
     /**
      * Signaling Server
@@ -301,7 +339,7 @@ class RtcFragment : Fragment() {
 
         override fun onConnectionEstablished() {
             if (signalingServer.connections >= 2) {
-                Log.d(TAG, "Another client is already connected, sending offer...")
+                Log.d(TAG, "Remote client is already connected")
                 showConnectionBox(getString(R.string.conn_status_connecting))
                 rtcClient.offer(sdpObserver)
             }
@@ -323,11 +361,10 @@ class RtcFragment : Fragment() {
         }
 
         override fun onOfferReceived(description: SessionDescription) {
-            Log.e(TAG, "Offer received - this should not happen!")
+            Log.e(TAG, "Received 'OFFER' ... this should not happen!")
         }
 
         override fun onAnswerReceived(description: SessionDescription) {
-            hideConnectionBox()
             rtcClient.onRemoteSessionReceived(description)
         }
 
@@ -355,6 +392,7 @@ class RtcFragment : Fragment() {
         rtcClient.enableVideo(localView)
         isVideoEnabled = true
         videoButton.isClickable = true
+        Log.d(TAG, "Enabling video done")
     }
 
     private fun disableVideo() {
@@ -366,6 +404,7 @@ class RtcFragment : Fragment() {
         rtcClient.disableVideo()
         isVideoEnabled = false
         videoButton.isClickable = true
+        Log.d(TAG, "Disabling video done")
     }
 
     private fun enableAudio() {
@@ -377,6 +416,7 @@ class RtcFragment : Fragment() {
         rtcClient.enableAudio()
         isAudioEnabled = true
         audioButton.isClickable = true
+        Log.d(TAG, "Enabling audio done")
     }
 
     private fun disableAudio() {
@@ -388,5 +428,6 @@ class RtcFragment : Fragment() {
         rtcClient.disableAudio()
         isAudioEnabled = false
         audioButton.isClickable = true
+        Log.d(TAG, "Disabling audio done")
     }
 }
