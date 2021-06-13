@@ -15,8 +15,9 @@
     <string name="permission_required">Camera Permission Required</string>
     <string name="permission_denied">Camera Permission Denied</string>
     <string name="permission_required_info">This app needs the camera to function</string>
-    <string name="permission_allow">Allow</string>
-    <string name="permission_deny">Deny</string>
+
+    <!-- General -->
+    <string name="str_continue">Continue</string>
 
 
     <!-- TODO: Remove or change this placeholder text -->

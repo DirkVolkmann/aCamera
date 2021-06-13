@@ -58,9 +58,8 @@ class SignalingClient(
 
     private val gson = Gson()
 
-    private var retriesDone = 0
-    private val retriesTotal = 10
-
+    var retriesDone = 0
+    val retriesTotal = 10
 
     private val client = HttpClient(CIO) {
         install(WebSockets)
@@ -77,10 +76,13 @@ class SignalingClient(
     }
 
     @ObsoleteCoroutinesApi
-    fun connect() = launch {
+    fun connect(waitMillis: Long = 0) = launch {
         state = State.CONNECTING
 
-        // TODO: Reconnecting should be done by watchdog
+        // Web socket could not be ready yet
+        // Wait a little bit before reconnecting
+        delay(waitMillis)
+
         retriesDone++
         Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$SOCKET_PORT$SOCKET_PATH' try $retriesDone of $retriesTotal")
 

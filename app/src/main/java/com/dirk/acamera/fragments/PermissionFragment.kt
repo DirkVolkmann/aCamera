@@ -1,60 +1,130 @@
 package com.dirk.acamera.fragments
 
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import androidx.fragment.app.Fragment
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import com.dirk.acamera.R
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.navigation.Navigation
+import com.dirk.acamera.*
 
-// TODO: Rename parameter arguments, choose names that match
-// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-private const val ARG_PARAM1 = "param1"
-private const val ARG_PARAM2 = "param2"
+private const val TAG = "aCamera PermissionFragment"
+
+typealias Permission = String
 
 /**
- * A simple [Fragment] subclass.
- * Use the [PermissionFragment.newInstance] factory method to
- * create an instance of this fragment.
+ * This fragments only purpose is to request permissions
+ * Depending on the result it will show different parts of the app
  */
 class PermissionFragment : Fragment() {
-    // TODO: Rename and change types of parameters
-    private var param1: String? = null
-    private var param2: String? = null
+    companion object {
+        fun checkAllPermissionsGranted(context: Context) = PERMISSIONS_REQUIRED.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-            param2 = it.getString(ARG_PARAM2)
+        fun checkPermissionGranted(context: Context, permission: Permission) : Boolean {
+            return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+        }
+
+        fun checkPermissionsChanged(context: Context) : Boolean {
+            PERMISSIONS_REQUIRED.forEach {
+                if (checkPermissionGranted(context, it) != permissionsGranted[it]) {
+                    Log.d(TAG, "Permission '$it' changed")
+                    return true
+                }
+            }
+            return false
         }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_permission, container, false)
+    // List of all denied permissions that will be requested again
+    private val permissionsToRequest = PERMISSIONS_REQUIRED.toMutableList()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        checkAllPermissions()
     }
 
-    companion object {
-        /**
-         * Use this factory method to create a new instance of
-         * this fragment using the provided parameters.
-         *
-         * @param param1 Parameter 1.
-         * @param param2 Parameter 2.
-         * @return A new instance of fragment PermissionFragment.
-         */
-        // TODO: Rename and change types and number of parameters
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            PermissionFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
+    private fun checkAllPermissions() {
+        Log.d(TAG, "Checking permissions...")
+
+        // Check permissions that are not yet granted
+        PERMISSIONS_REQUIRED.forEach { permission ->
+            if (checkPermissionGranted(requireContext(), permission)) {
+                Log.d(TAG, "Permission '$permission' already granted")
+                permissionsToRequest.remove(permission)
+                permissionsGranted[permission] = true
+            } else {
+                Log.d(TAG, "Permission '$permission' not yet granted")
+            }
+        }
+
+        // We only need to ask for permissions if there are any denied
+        if (permissionsToRequest.isEmpty()) {
+            onCheckPermissionsCompleted()
+        } else {
+            requestPermissions(permissionsToRequest.toTypedArray())
+        }
+    }
+
+    private fun onCheckPermissionsCompleted() {
+        Log.d(TAG, "Permission check completed, switching to other fragment")
+        lifecycleScope.launchWhenStarted {
+            Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
+                PermissionFragmentDirections.actionPermissionToRtc()
+            )
+        }
+    }
+
+    private fun requestPermissions(permissions: Array<out Permission>, skipDialog: Boolean = false) {
+        Log.d(TAG, "Requesting permissions...")
+        if (!skipDialog) {
+            var showDialog = false
+            permissions.forEach showDialogCheck@ { permission ->
+                if (shouldShowRequestPermissionRationale(permission)) {
+                    showDialog = true
+                    return@showDialogCheck
                 }
             }
+            if (showDialog) {
+                Log.d(TAG, "Showing dialog first...")
+                showPermissionRationaleDialog(permissions)
+                return
+            }
+        }
+
+        requestPermissions(permissions, PERMISSIONS_REQUEST_CODE)
+    }
+
+    private fun showPermissionRationaleDialog(permissions: Array<out Permission>) {
+        AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.permission_required))
+            .setMessage(getString(R.string.permission_required_info))
+            .setNeutralButton(getString(R.string.str_continue)) {dialog, _ ->
+                dialog.dismiss()
+                requestPermissions(permissions, true)
+            }
+            .show()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out Permission>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSIONS_REQUEST_CODE) {
+            Log.d(TAG, "Permission request result arrived")
+            for (i in permissions.indices) {
+                val permission = permissions[i]
+                if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "Permission '" + permissions[i] + "' was granted")
+                    permissionsGranted[permission] = true
+                } else {
+                    Log.d(TAG, "Permission '" + permissions[i] + "' was denied")
+                    permissionsGranted[permission] = false
+                }
+            }
+            onCheckPermissionsCompleted()
+        }
     }
 }

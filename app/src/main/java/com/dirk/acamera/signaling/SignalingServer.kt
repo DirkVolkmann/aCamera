@@ -90,7 +90,7 @@ class SignalingServer(
         start()
     }
 
-    fun start() = launch {
+    private fun start() = launch {
         server.start(wait = true)
     }
 

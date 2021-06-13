@@ -2,8 +2,10 @@ package com.dirk.acamera.rtc
 
 import android.app.Application
 import android.content.Context
+import android.provider.MediaStore
 import android.util.Log
 import org.webrtc.*
+import kotlin.reflect.typeOf
 
 private const val TAG = "aCamera RtcClient"
 
@@ -16,12 +18,16 @@ class RtcClient(
         private const val VIDEO_ID = "acamera_video"
         private const val AUDIO_ID = "acamera_audio"
         private const val STREAM_ID = "acamera_stream"
+
     }
 
     private val rootEglBase: EglBase = EglBase.create()
 
     private var videoTrack: VideoTrack? = null
     private var audioTrack: AudioTrack? = null
+    private var isVideoInitialized = false
+    private var isAudioInitialized = false
+    private var isStreamInitialized = false
 
     init {
         initPeerConnectionFactory(context)
@@ -33,10 +39,12 @@ class RtcClient(
     )
 
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
+    private val mediaStream by lazy { buildMediaStream(STREAM_ID) }
     private val videoCapturer by lazy { getVideoCapturer(context) }
     private val videoSource by lazy { peerConnectionFactory.createVideoSource(false) }
     private val audioSource by lazy { peerConnectionFactory.createAudioSource(MediaConstraints()) }
     private val peerConnection by lazy { buildPeerConnection(observer) }
+    private val surfaceTextureHelper by lazy { buildSurfaceTextureHelper() }
 
     private fun initPeerConnectionFactory(context: Application) {
         val options = PeerConnectionFactory.InitializationOptions.builder(context)
@@ -63,6 +71,10 @@ class RtcClient(
         observer
     )
 
+    private fun buildMediaStream(id: String) = peerConnectionFactory.createLocalMediaStream(id)
+
+    private fun buildSurfaceTextureHelper() = SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext)
+
     private fun getVideoCapturer(context: Context) =
         Camera2Enumerator(context).run {
             deviceNames.find {
@@ -78,46 +90,95 @@ class RtcClient(
         init(rootEglBase.eglBaseContext, null)
     }
 
-    fun startLocalVideoCapture(videoOutput: SurfaceViewRenderer) {
-        val surfaceTextureHelper = SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext)
-        (videoCapturer as VideoCapturer).initialize(surfaceTextureHelper, videoOutput.context, videoSource.capturerObserver)
-        videoCapturer.startCapture(1280, 720, 30)
+    /**
+     * Media Stream
+     */
 
-        videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_ID, videoSource)
-        videoTrack!!.addSink(videoOutput)
+    private fun reloadMediaStream() {
+        Log.d(TAG, "Reloading stream...")
 
-        audioTrack = peerConnectionFactory.createAudioTrack(AUDIO_ID, audioSource)
+        if (!isVideoInitialized && videoTrack != null) {
+            Log.d(TAG, "Initializing video track...")
+            mediaStream.addTrack(videoTrack).also {
+                Log.d(TAG, "Initializing video track done")
+                isVideoInitialized = it
+            }
+        }
+        if (!isAudioInitialized && audioTrack != null) {
+            Log.d(TAG, "Initializing audio track...")
+            mediaStream.addTrack(audioTrack).also {
+                Log.d(TAG, "Initializing audio track done")
+                isAudioInitialized = it
+            }
+        }
 
-        val stream = peerConnectionFactory.createLocalMediaStream(STREAM_ID)
-        stream.addTrack(videoTrack)
-        stream.addTrack(audioTrack)
-
-        peerConnection?.addStream(stream)
+        if (!isStreamInitialized) {
+            Log.d(TAG, "Adding stream to peer connection...")
+            peerConnection?.addStream(mediaStream).also {
+                if (it != null) {
+                    Log.d(TAG, "Adding stream to peer connection done")
+                    isStreamInitialized = it
+                } else {
+                    Log.e(TAG, "Could not add stream, no peer connection available")
+                }
+            }
+        }
     }
 
-    fun enableVideo() {
-        if (videoTrack != null) {
-            videoTrack!!.setEnabled(true)
+    /**
+     * Video
+     */
+
+    private fun initVideo(videoOutput: SurfaceViewRenderer) {
+        videoCapturer.initialize(
+            surfaceTextureHelper,
+            videoOutput.context,
+            videoSource.capturerObserver
+        )
+        videoCapturer.startCapture(1280, 720, 30)
+
+        videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_ID, videoSource).apply {
+            addSink(videoOutput)
         }
+    }
+
+    fun enableVideo(videoOutput: SurfaceViewRenderer) {
+        if (videoTrack == null) {
+            initVideo(videoOutput)
+        }
+        videoTrack?.setEnabled(true)
+
+        reloadMediaStream()
     }
 
     fun disableVideo() {
-        if (videoTrack != null) {
-            videoTrack!!.setEnabled(false)
-        }
+        videoTrack?.setEnabled(false)
+    }
+
+    /**
+     * Audio
+     */
+
+    private fun initAudio() {
+        audioTrack = peerConnectionFactory.createAudioTrack(AUDIO_ID, audioSource)
     }
 
     fun enableAudio() {
-        if (audioTrack != null) {
-            audioTrack!!.setEnabled(true)
+        if (audioTrack == null) {
+            initAudio()
         }
+        audioTrack?.setEnabled(true)
+
+        reloadMediaStream()
     }
 
     fun disableAudio() {
-        if (audioTrack != null) {
-            audioTrack!!.setEnabled(false)
-        }
+        audioTrack?.setEnabled(false)
     }
+
+    /**
+     * Peer Connection
+     */
 
     private fun PeerConnection.offer(sdpObserver: SdpObserver) {
         Log.d(TAG, "Sending OFFER to remote client")
