@@ -12,12 +12,15 @@
 
     <!-- Permission Messages -->
     <string name="permission_status_check">Checking Permissions…</string>
-    <string name="permission_required">Camera Permission Required</string>
-    <string name="permission_denied">Camera Permission Denied</string>
-    <string name="permission_required_info">This app needs the camera to function</string>
+    <string name="permission_required">Some Permissions are Required</string>
+    <string name="permission_denied">Permission was Denied</string>
+    <string name="camera_permission_denied_info">No Access to the Camera Granted</string>
+    <string name="permission_required_info">This app needs to access the camera and audio of your device to use it\'s features. Your can deny access and still use the app, but won\'t be able to use the corresponding feature.</string>
 
     <!-- General -->
     <string name="str_continue">Continue</string>
+    <string name="str_allow">Allow</string>
+    <string name="str_deny">Deny</string>
 
 
     <!-- TODO: Remove or change this placeholder text -->

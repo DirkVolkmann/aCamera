@@ -13,6 +13,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
 import androidx.core.view.isGone
 import androidx.navigation.Navigation
 import com.dirk.acamera.*
@@ -73,15 +74,13 @@ class RtcFragment : Fragment() {
         audioButton = container.findViewById(R.id.button_audio)
         videoButton = container.findViewById(R.id.button_video)
 
-        setButtonListeners()
-
-        showConnectionBox(activityGetString(R.string.conn_status_signaling_server))
+        showConnectionBox(getString(R.string.conn_status_signaling_server))
         signalingServer = SignalingServer(createSignalingServerListener(), requireContext())
 
-        showConnectionBox(activityGetString(R.string.conn_status_signaling_client))
+        showConnectionBox(getString(R.string.conn_status_signaling_client))
         signalingClient = SignalingClient(createSignalingClientListener())
 
-        showConnectionBox(activityGetString(R.string.conn_status_rtc_client))
+        showConnectionBox(getString(R.string.conn_status_rtc_client))
         rtcClient = RtcClient(requireActivity().application, createPeerConnectionObserver())
         rtcClient.initSurfaceView(localView)
     }
@@ -97,9 +96,11 @@ class RtcFragment : Fragment() {
         super.onDestroyView()
         Log.d(TAG, "onDestroyView called")
 
+        showConnectionBox("Stopping services...")
         rtcClient.destroy()
         signalingClient.destroy()
         signalingServer.stop()
+        hideConnectionBox()
     }
 
     /**
@@ -139,8 +140,52 @@ class RtcFragment : Fragment() {
         container.findViewById<CardView>(R.id.connection_container).isGone = true
     }
 
-    private fun activityGetString(resId: Int) : String {
-        return requireActivity().getString(resId)
+    private fun showLocalViewMessage(text: CharSequence) {
+        val localViewMessage = container.findViewById<TextView>(R.id.local_view_message)
+        localViewMessage.text = text
+        localViewMessage.isGone = false
+    }
+
+    private fun hideLocalViewMessage() {
+        container.findViewById<TextView>(R.id.local_view_message).isGone = true
+    }
+
+    private fun setVideoButtonListener(hasPermission: Boolean = true) {
+        if (hasPermission) {
+            videoButton.setOnClickListener {
+                if (isVideoEnabled) {
+                    disableVideo()
+                } else {
+                    enableVideo()
+                }
+            }
+        } else {
+            videoButton.backgroundTintList =
+                requireContext().getColorStateList(R.color.design_default_color_error)
+            videoButton.setOnClickListener {
+                Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG)
+                    .show()
+            }
+        }
+    }
+
+    private fun setAudioButtonListener(hasPermission: Boolean = true) {
+        if (hasPermission) {
+            audioButton.setOnClickListener {
+                if (isAudioEnabled) {
+                    disableAudio()
+                } else {
+                    enableAudio()
+                }
+            }
+        } else {
+            audioButton.backgroundTintList =
+                requireContext().getColorStateList(R.color.design_default_color_error)
+            audioButton.setOnClickListener {
+                Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG)
+                    .show()
+            }
+        }
     }
 
     /**
@@ -148,7 +193,9 @@ class RtcFragment : Fragment() {
      */
 
     private fun checkPermissions() {
-        if (PermissionFragment.checkPermissionsChanged(requireContext())) {
+        if (PermissionFragment.checkPermissionsChanged(requireContext()) ||
+            PermissionFragment.checkShowDialog(requireActivity(), PERMISSIONS_REQUIRED.toTypedArray())) {
+
             Log.d(TAG, "Permissions changed")
             if (!PermissionFragment.checkAllPermissionsGranted(requireContext())) {
                 Log.d(TAG, "Checking permissions...")
@@ -177,42 +224,40 @@ class RtcFragment : Fragment() {
 
     private fun onCameraPermissionGranted() {
         Log.d(TAG, "Camera permission was granted")
+        hideLocalViewMessage()
+        setVideoButtonListener()
         if (isVideoEnabled) {
             enableVideo()
             val streamUrl = "172.16.42.3:8080" // TODO: Read IP from device and port from app settings
             val bulletList = SpannableStringBuilder(buildBulletList(resources.getStringArray(R.array.how_to_connect), 40))
             if(signalingClient.state != SignalingClient.State.CONNECTION_ESTABLISHED)
-                showConnectionBox(activityGetString(R.string.conn_status_remote_client), bulletList, streamUrl)
+                showConnectionBox(getString(R.string.conn_status_remote_client), bulletList, streamUrl)
         } else {
-            Log.d(TAG, "Video disabled, noting to do")
+            disableVideo() // Also changes button style
         }
     }
 
     private fun onCameraPermissionDenied() {
         Log.d(TAG, "Camera permission was not granted")
         disableVideo()
-        videoButton.setOnClickListener {
-            Toast.makeText(context, activityGetString(R.string.permission_required_info), Toast.LENGTH_LONG).show()
-        }
-        showConnectionBox(activityGetString(R.string.permission_required_info))
-        Toast.makeText(context, activityGetString(R.string.permission_denied), Toast.LENGTH_LONG).show()
+        setVideoButtonListener(false)
+        showLocalViewMessage(getString(R.string.camera_permission_denied_info))
     }
 
     private fun onAudioPermissionGranted() {
         Log.d(TAG, "Audio permission was granted")
+        setAudioButtonListener()
         if (isAudioEnabled) {
             enableAudio()
         } else {
-            Log.d(TAG, "Audio disabled, nothing to do")
+            disableAudio() // Also changes button style
         }
     }
 
     private fun onAudioPermissionDenied() {
         Log.d(TAG, "Audio permission was not granted")
         disableAudio()
-        audioButton.setOnClickListener {
-            Toast.makeText(context, activityGetString(R.string.permission_denied), Toast.LENGTH_LONG).show()
-        }
+        setAudioButtonListener(false)
     }
 
     /**
@@ -235,7 +280,7 @@ class RtcFragment : Fragment() {
         override fun onConnectionEstablished() {
         if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
                 Log.d(TAG, "Remote client connected, sending offer...")
-                showConnectionBox(activityGetString(R.string.conn_status_connecting))
+                showConnectionBox(getString(R.string.conn_status_connecting))
                 rtcClient.offer(sdpObserver)
             }
         }
@@ -243,7 +288,7 @@ class RtcFragment : Fragment() {
         override fun onConnectionAborted() {
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
                 Log.d(TAG,"Remote client disconnected")
-                showConnectionBox(activityGetString(R.string.conn_status_remote_client))
+                showConnectionBox(getString(R.string.conn_status_remote_client))
             }
         }
     }
@@ -257,7 +302,7 @@ class RtcFragment : Fragment() {
         override fun onConnectionEstablished() {
             if (signalingServer.connections >= 2) {
                 Log.d(TAG, "Another client is already connected, sending offer...")
-                showConnectionBox(activityGetString(R.string.conn_status_connecting))
+                showConnectionBox(getString(R.string.conn_status_connecting))
                 rtcClient.offer(sdpObserver)
             }
         }
@@ -267,14 +312,14 @@ class RtcFragment : Fragment() {
                 signalingClient.connect(1000)
             } else {
                 showConnectionBox(
-                    activityGetString(R.string.conn_status_failed),
+                    getString(R.string.conn_status_failed),
                     showProgressBar = false
                 )
             }
         }
 
         override fun onConnectionAborted() {
-            showConnectionBox(activityGetString(R.string.conn_status_aborted), showProgressBar = false)
+            showConnectionBox(getString(R.string.conn_status_aborted), showProgressBar = false)
         }
 
         override fun onOfferReceived(description: SessionDescription) {
@@ -301,28 +346,12 @@ class RtcFragment : Fragment() {
      * Media
      */
 
-    private fun setButtonListeners() {
-        videoButton.setOnClickListener {
-            if (isVideoEnabled) {
-                disableVideo()
-            } else {
-                enableVideo()
-            }
-        }
-
-        audioButton.setOnClickListener {
-            if (isAudioEnabled) {
-                disableAudio()
-            } else {
-                enableAudio()
-            }
-        }
-    }
-
     private fun enableVideo() {
         Log.d(TAG, "Enabling video...")
         videoButton.isClickable = false
         videoButton.setImageResource(R.drawable.ic_videocam_black_24dp)
+        videoButton.backgroundTintList =
+            requireContext().getColorStateList(R.color.design_default_color_secondary)
         rtcClient.enableVideo(localView)
         isVideoEnabled = true
         videoButton.isClickable = true
@@ -332,6 +361,8 @@ class RtcFragment : Fragment() {
         Log.d(TAG, "Disabling video...")
         videoButton.isClickable = false
         videoButton.setImageResource(R.drawable.ic_videocam_off_black_24dp)
+        videoButton.backgroundTintList =
+            requireContext().getColorStateList(R.color.design_default_color_primary)
         rtcClient.disableVideo()
         isVideoEnabled = false
         videoButton.isClickable = true
@@ -341,6 +372,8 @@ class RtcFragment : Fragment() {
         Log.d(TAG, "Enabling audio...")
         audioButton.isClickable = false
         audioButton.setImageResource(R.drawable.ic_mic_black_24dp)
+        audioButton.backgroundTintList =
+            requireContext().getColorStateList(R.color.design_default_color_secondary)
         rtcClient.enableAudio()
         isAudioEnabled = true
         audioButton.isClickable = true
@@ -350,6 +383,8 @@ class RtcFragment : Fragment() {
         Log.d(TAG, "Disabling audio...")
         audioButton.isClickable = false
         audioButton.setImageResource(R.drawable.ic_mic_off_black_24dp)
+        audioButton.backgroundTintList =
+            requireContext().getColorStateList(R.color.design_default_color_primary)
         rtcClient.disableAudio()
         isAudioEnabled = false
         audioButton.isClickable = true

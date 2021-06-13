@@ -1,11 +1,13 @@
 package com.dirk.acamera.fragments
 
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.appcompat.app.AlertDialog
+import androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.Navigation
@@ -30,9 +32,18 @@ class PermissionFragment : Fragment() {
         }
 
         fun checkPermissionsChanged(context: Context) : Boolean {
-            PERMISSIONS_REQUIRED.forEach {
-                if (checkPermissionGranted(context, it) != permissionsGranted[it]) {
-                    Log.d(TAG, "Permission '$it' changed")
+            PERMISSIONS_REQUIRED.forEach { permission ->
+                if (checkPermissionGranted(context, permission) != permissionsGranted[permission]) {
+                    Log.d(TAG, "Permission '$permission' changed")
+                    return true
+                }
+            }
+            return false
+        }
+
+        fun checkShowDialog(activity: Activity, permissions: Array<out Permission>) : Boolean {
+            permissions.forEach {
+                if (shouldShowRequestPermissionRationale(activity, it)) {
                     return true
                 }
             }
@@ -81,19 +92,11 @@ class PermissionFragment : Fragment() {
 
     private fun requestPermissions(permissions: Array<out Permission>, skipDialog: Boolean = false) {
         Log.d(TAG, "Requesting permissions...")
-        if (!skipDialog) {
-            var showDialog = false
-            permissions.forEach showDialogCheck@ { permission ->
-                if (shouldShowRequestPermissionRationale(permission)) {
-                    showDialog = true
-                    return@showDialogCheck
-                }
-            }
-            if (showDialog) {
-                Log.d(TAG, "Showing dialog first...")
-                showPermissionRationaleDialog(permissions)
-                return
-            }
+
+        if (!skipDialog && checkShowDialog(requireActivity(), permissions)) {
+            Log.d(TAG, "Showing dialog first...")
+            showPermissionRationaleDialog(permissions)
+            return
         }
 
         requestPermissions(permissions, PERMISSIONS_REQUEST_CODE)
