@@ -25,9 +25,7 @@ import com.dirk.acamera.signaling.SignalingClientListener
 import com.dirk.acamera.signaling.SignalingServer
 import com.dirk.acamera.signaling.SignalingServerListener
 import com.dirk.acamera.utils.buildBulletList
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ObsoleteCoroutinesApi
-import kotlinx.coroutines.launch
 import org.webrtc.IceCandidate
 import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
@@ -326,7 +324,7 @@ class RtcFragment : Fragment() {
         override fun onConnectionAborted() {
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
                 Log.d(TAG,"Remote client disconnected")
-                showConnectionBox(getString(R.string.conn_status_remote_client))
+                showConnectionBox(getString(R.string.conn_status_remote_client), howToConnectList, streamUrl)
             }
         }
     }
