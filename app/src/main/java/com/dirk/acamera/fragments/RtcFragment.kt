@@ -159,6 +159,14 @@ class RtcFragment : Fragment() {
         // Inflate a new view containing all the buttons
         val controls = View.inflate(requireContext(), R.layout.button_container, container)
 
+        // Colors for buttons
+        val colorEnabledBackground = requireContext().getColorStateList(R.color.design_default_color_secondary)
+        val colorEnabledIcon = requireContext().getColorStateList(R.color.design_default_color_on_secondary)
+        val colorDisabledBackground = requireContext().getColorStateList(R.color.design_default_color_primary)
+        val colorDisabledIcon = requireContext().getColorStateList(R.color.design_default_color_on_primary)
+        val colorDeniedBackground = requireContext().getColorStateList(R.color.design_default_color_error)
+        val colorDeniedIcon = requireContext().getColorStateList(R.color.design_default_color_on_primary)
+
         // Update video button
         controls.findViewById<ImageButton>(R.id.button_video).let {
             it.isClickable = false
@@ -175,11 +183,13 @@ class RtcFragment : Fragment() {
                 if (isVideoEnabled) {
                     // Button is enabled
                     it.setImageResource(R.drawable.ic_videocam_black_24dp)
-                    it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_secondary)
+                    it.backgroundTintList = colorEnabledBackground
+                    it.imageTintList = colorEnabledIcon
                 } else {
                     // Button is disabled
                     it.setImageResource(R.drawable.ic_videocam_off_black_24dp)
-                    it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_primary)
+                    it.backgroundTintList = colorDisabledBackground
+                    it.imageTintList = colorDisabledIcon
                 }
                 // Hide message on local view
                 container.findViewById<TextView>(R.id.local_view_message).isGone = true
@@ -190,7 +200,8 @@ class RtcFragment : Fragment() {
                 }
                 // Button style if no permission
                 it.setImageResource(R.drawable.ic_videocam_off_black_24dp)
-                it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_error)
+                it.backgroundTintList = colorDeniedBackground
+                it.imageTintList = colorDeniedIcon
                 // Show local view message
                 container.findViewById<TextView>(R.id.local_view_message).let { textView ->
                     textView.text = getString(R.string.camera_permission_denied_info)
@@ -216,11 +227,13 @@ class RtcFragment : Fragment() {
                 if (isAudioEnabled) {
                     // Button is enabled
                     it.setImageResource(R.drawable.ic_mic_black_24dp)
-                    it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_secondary)
+                    it.backgroundTintList = colorEnabledBackground
+                    it.imageTintList = colorEnabledIcon
                 } else {
                     // Button is disabled
                     it.setImageResource(R.drawable.ic_mic_off_black_24dp)
-                    it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_primary)
+                    it.backgroundTintList = colorDisabledBackground
+                    it.imageTintList = colorDisabledIcon
                 }
             } else {
                 // Set listener if permission is denied
@@ -229,7 +242,8 @@ class RtcFragment : Fragment() {
                 }
                 // Button style if no permission
                 it.setImageResource(R.drawable.ic_mic_off_black_24dp)
-                it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_error)
+                it.backgroundTintList = colorDeniedBackground
+                it.imageTintList = colorDeniedIcon
             }
             it.isClickable = true
         }
