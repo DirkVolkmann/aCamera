@@ -8,6 +8,8 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
+import com.dirk.acamera.fragments.Permission
+import com.dirk.acamera.fragments.PermissionFragment
 
 
 private const val TAG = "aCamera MainActivity"
@@ -26,7 +28,7 @@ const val PERMISSION_AUDIO = Manifest.permission.RECORD_AUDIO
 val PERMISSIONS_REQUIRED = listOf(PERMISSION_CAMERA, PERMISSION_AUDIO)
 // List of granted permissions since last request
 // Used to check if request have changed while app was running in the background
-val permissionsGranted = mutableMapOf(PERMISSION_CAMERA to false, PERMISSION_AUDIO to false)
+val permissionsGranted = mutableListOf<Permission>()
 
 class MainActivity : AppCompatActivity() {
     private lateinit var container: FrameLayout

@@ -3,7 +3,6 @@ package com.dirk.acamera.signaling
 import android.content.Context
 import android.util.Log
 import io.ktor.application.*
-import io.ktor.features.CallLogging
 import io.ktor.http.cio.websocket.*
 import io.ktor.http.content.*
 import io.ktor.routing.*
@@ -27,30 +26,37 @@ class SignalingServer(
     companion object {
         private const val ASSETS_FOLDER = "web"
 
-        private const val SOCKET_PORT = 8080
+        private const val SOCKET_PORT = 8080 // TODO: Get port from settings
         private const val SOCKET_PATH = "/socket"
         private const val SOCKET_PING_PERIOD_SECONDS = 60L
         private const val SOCKET_TIMEOUT_SECONDS = 15L
         private const val SOCKET_MAX_FRAME_SIZE = Long.MAX_VALUE
         private const val SOCKET_MASKING = false
+
+        private const val SERVER_STOP_GRACE_MILLIS = 5000L
+        private const val SERVER_STOP_TIMEOUT_MILLIS = 10000L
     }
+
+    // TODO: Try different ports in case one is already in use
+    enum class State {
+        INITIALIZING,
+        RUNNING,
+        FAILED
+    }
+
+    var state = State.INITIALIZING
+    var connections = 0
+    private var sessions = Collections.synchronizedMap(mutableMapOf<String, WebSocketServerSession>())
+    private var resourcesReady = false
 
     private val job = Job()
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO + job
 
-    var connections = 0
-
-    private var sessions = Collections.synchronizedMap(mutableMapOf<String, WebSocketServerSession>())
-
-    private var resourcesReady = false
-
     private val server = embeddedServer(Netty, SOCKET_PORT) {
-
         if (!resourcesReady) copyWebResources()
 
-        install(CallLogging)
-
+        // Web socket is used for local and remote signaling clients
         install(WebSockets) {
             pingPeriod = Duration.ofSeconds(SOCKET_PING_PERIOD_SECONDS)
             timeout = Duration.ofSeconds(SOCKET_TIMEOUT_SECONDS)
@@ -58,6 +64,7 @@ class SignalingServer(
             masking = SOCKET_MASKING
         }
 
+        // Static content can be accessed by the remote client
         routing {
             webSocket(path = SOCKET_PATH) {
                 // Add session
@@ -86,12 +93,19 @@ class SignalingServer(
     }
 
     init {
-        Log.d(TAG, "Running server thread")
         start()
     }
 
     private fun start() = launch {
-        server.start(wait = true)
+        Log.d(TAG, "Running server thread...")
+        state = try {
+            server.start(wait = true)
+            Log.d(TAG, "Running server thread success")
+            State.RUNNING
+        } catch (error: Exception) {
+            Log.d(TAG, "Running server thread failed")
+            State.FAILED
+        }
     }
 
     private fun copyWebResources() = launch(Dispatchers.IO) {
@@ -129,8 +143,8 @@ class SignalingServer(
         launch(Dispatchers.Main) { listener.onConnectionAborted() }
     }
 
-    fun stop() {
-        server.stop(gracePeriodMillis = 5000, timeoutMillis = 10000)
+    fun stop() = launch {
+        server.stop(gracePeriodMillis = SERVER_STOP_GRACE_MILLIS, timeoutMillis = SERVER_STOP_TIMEOUT_MILLIS)
         job.complete()
     }
 }

@@ -2,9 +2,6 @@
     <string name="app_name">aCamera</string>
 
     <!-- Connection Status Messages -->
-    <string name="conn_status_signaling_server">Creating Signaling Server…</string>
-    <string name="conn_status_signaling_client">Creating Local Signaling Client…</string>>
-    <string name="conn_status_rtc_client">Creating RTC Client…</string>
     <string name="conn_status_remote_client">Searching Remote Client…</string>
     <string name="conn_status_connecting">Connecting to Remote Client…</string>
     <string name="conn_status_failed">Connection Failed</string>

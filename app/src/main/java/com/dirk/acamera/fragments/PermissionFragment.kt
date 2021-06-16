@@ -33,7 +33,7 @@ class PermissionFragment : Fragment() {
 
         fun checkPermissionsChanged(context: Context) : Boolean {
             PERMISSIONS_REQUIRED.forEach { permission ->
-                if (checkPermissionGranted(context, permission) != permissionsGranted[permission]) {
+                if (checkPermissionGranted(context, permission) != permissionsGranted.contains(permission)) {
                     Log.d(TAG, "Permission '$permission' changed")
                     return true
                 }
@@ -67,7 +67,7 @@ class PermissionFragment : Fragment() {
             if (checkPermissionGranted(requireContext(), permission)) {
                 Log.d(TAG, "Permission '$permission' already granted")
                 permissionsToRequest.remove(permission)
-                permissionsGranted[permission] = true
+                permissionsGrantedAddSave(permission)
             } else {
                 Log.d(TAG, "Permission '$permission' not yet granted")
             }
@@ -103,6 +103,7 @@ class PermissionFragment : Fragment() {
     }
 
     private fun showPermissionRationaleDialog(permissions: Array<out Permission>) {
+        // TODO: Vary dialog depending on which permissions are required
         AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.permission_required))
             .setMessage(getString(R.string.permission_required_info))
@@ -110,6 +111,7 @@ class PermissionFragment : Fragment() {
                 dialog.dismiss()
                 requestPermissions(permissions, true)
             }
+            .setCancelable(false)
             .show()
     }
 
@@ -121,13 +123,23 @@ class PermissionFragment : Fragment() {
                 val permission = permissions[i]
                 if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
                     Log.d(TAG, "Permission '" + permissions[i] + "' was granted")
-                    permissionsGranted[permission] = true
+                    permissionsGrantedAddSave(permission)
                 } else {
                     Log.d(TAG, "Permission '" + permissions[i] + "' was denied")
-                    permissionsGranted[permission] = false
+                    permissionsGrantedRemoveSave(permission)
                 }
             }
             onCheckPermissionsCompleted()
         }
+    }
+
+    private fun permissionsGrantedAddSave(permission: Permission) {
+        if (!permissionsGranted.contains(permission))
+            permissionsGranted.add(permission)
+    }
+
+    private fun permissionsGrantedRemoveSave(permission: Permission) {
+        if (permissionsGranted.contains(permission))
+            permissionsGranted.remove(permission)
     }
 }

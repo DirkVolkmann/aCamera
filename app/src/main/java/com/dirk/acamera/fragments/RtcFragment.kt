@@ -36,27 +36,27 @@ private const val TAG = "aCamera RtcFragment"
 @ObsoleteCoroutinesApi
 class RtcFragment : Fragment() {
 
+    // Views
     private lateinit var container: ConstraintLayout
     private lateinit var localView: SurfaceViewRenderer
     private lateinit var audioButton: ImageView
     private lateinit var videoButton: ImageView
 
-    private lateinit var rtcClient: RtcClient
-    private lateinit var signalingClient: SignalingClient
-    private lateinit var signalingServer: SignalingServer
-
-    private lateinit var streamUrl: String
-    private lateinit var howToConnectList: SpannableStringBuilder
-
+    // Flags
     private var isVideoEnabled = true
     private var isAudioEnabled = true
+    private var hasVideoPermission = false
+    private var hasAudioPermission = false
 
-    private val sdpObserver = object : SimpleSdpObserver() {
-        override fun onCreateSuccess(p0: SessionDescription?) {
-            super.onCreateSuccess(p0)
-            signalingClient.send(p0)
-        }
-    }
+    // Networking
+    private lateinit var signalingClient: SignalingClient
+    private lateinit var signalingServer: SignalingServer
+    private lateinit var sdpObserver: SimpleSdpObserver
+    private lateinit var rtcClient: RtcClient
+
+    // Other
+    private lateinit var streamUrl: String
+    private lateinit var howToConnectList: SpannableStringBuilder
 
     /**
      * Fragment Lifecycle
@@ -73,27 +73,19 @@ class RtcFragment : Fragment() {
         Log.d(TAG, "onViewCreated called")
 
         // Initialize views
-
         container = view as ConstraintLayout
-
         localView = container.findViewById(R.id.local_view)
         audioButton = container.findViewById(R.id.button_audio)
         videoButton = container.findViewById(R.id.button_video)
 
-        // Get values from settings or resources
-
+        // Get values from settings
         streamUrl = "172.16.42.3:8080" // TODO: Read IP from device and port from app settings
         howToConnectList = SpannableStringBuilder(buildBulletList(resources.getStringArray(R.array.how_to_connect), 40))
 
-        // Create networking services
-
-        showConnectionBox(getString(R.string.conn_status_signaling_server))
-        signalingServer = SignalingServer(createSignalingServerListener(), requireContext())
-
-        showConnectionBox(getString(R.string.conn_status_signaling_client))
+        // Initialize networking services
         signalingClient = SignalingClient(createSignalingClientListener())
-
-        showConnectionBox(getString(R.string.conn_status_rtc_client))
+        signalingServer = SignalingServer(createSignalingServerListener(), requireContext())
+        sdpObserver = createSdpObserver()
         rtcClient = RtcClient(requireActivity().application, createPeerConnectionObserver())
         rtcClient.initSurfaceView(localView)
     }
@@ -101,23 +93,19 @@ class RtcFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         Log.d(TAG, "onResume called")
-
         checkPermissions()
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         Log.d(TAG, "onDestroyView called")
-
-        showConnectionBox("Stopping services...")
         rtcClient.destroy()
         signalingClient.destroy()
         signalingServer.stop()
-        showConnectionBox("Stopping services done")
     }
 
     /**
-     * Views
+     * UI
      */
 
     private fun showConnectionBox(text: CharSequence, textSecondary: CharSequence? = null, textNotice: CharSequence? = null, showProgressBar: Boolean = true) {
@@ -153,51 +141,81 @@ class RtcFragment : Fragment() {
         container.findViewById<CardView>(R.id.connection_container).isGone = true
     }
 
-    private fun showLocalViewMessage(text: CharSequence) {
-        val localViewMessage = container.findViewById<TextView>(R.id.local_view_message)
-        localViewMessage.text = text
-        localViewMessage.isGone = false
-    }
+    private fun updateUi() {
 
-    private fun hideLocalViewMessage() {
-        container.findViewById<TextView>(R.id.local_view_message).isGone = true
-    }
-
-    private fun setVideoButtonListener(hasPermission: Boolean = true) {
-        if (hasPermission) {
-            videoButton.setOnClickListener {
+        // Update video button
+        videoButton.let {
+            it.isClickable = false
+            if (hasVideoPermission) {
+                // Set listener if permission is granted
+                it.setOnClickListener {
+                    if (isVideoEnabled) {
+                        disableVideo()
+                    } else {
+                        enableVideo()
+                    }
+                }
+                // Set button style
                 if (isVideoEnabled) {
-                    disableVideo()
+                    // Button is enabled
+                    it.setImageResource(R.drawable.ic_videocam_black_24dp)
+                    it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_secondary)
                 } else {
-                    enableVideo()
+                    // Button is disabled
+                    it.setImageResource(R.drawable.ic_videocam_off_black_24dp)
+                    it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_primary)
+                }
+                // Hide message on local view
+                container.findViewById<TextView>(R.id.local_view_message).isGone = true
+            } else {
+                // Set listener if permission is denied
+                it.setOnClickListener {
+                    Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
+                }
+                // Button style if no permission
+                it.setImageResource(R.drawable.ic_videocam_off_black_24dp)
+                it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_error)
+                // Show local view message
+                container.findViewById<TextView>(R.id.local_view_message).let { textView ->
+                    textView.text = getString(R.string.camera_permission_denied_info)
+                    textView.isGone = false
                 }
             }
-        } else {
-            videoButton.backgroundTintList =
-                requireContext().getColorStateList(R.color.design_default_color_error)
-            videoButton.setOnClickListener {
-                Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG)
-                    .show()
-            }
+            it.isClickable = true
         }
-    }
 
-    private fun setAudioButtonListener(hasPermission: Boolean = true) {
-        if (hasPermission) {
-            audioButton.setOnClickListener {
-                if (isAudioEnabled) {
-                    disableAudio()
-                } else {
-                    enableAudio()
+        // Update audio button
+        audioButton.let {
+            it.isClickable = false
+            if (hasAudioPermission) {
+                // Set listener if permission is granted
+                it.setOnClickListener {
+                    if (isAudioEnabled) {
+                        disableAudio()
+                    } else {
+                        enableAudio()
+                    }
                 }
+                // Set button style
+                if (isAudioEnabled) {
+                    // Button is enabled
+                    it.setImageResource(R.drawable.ic_mic_black_24dp)
+                    it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_secondary)
+                } else {
+                    // Button is disabled
+                    it.setImageResource(R.drawable.ic_mic_off_black_24dp)
+                    it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_primary)
+                }
+            } else {
+                // Set listener if permission is denied
+                it.setOnClickListener {
+                    Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
+                }
+                // Button style if no permission
+                it.setImageResource(R.drawable.ic_mic_off_black_24dp)
+                it.backgroundTintList = requireContext().getColorStateList(R.color.design_default_color_error)
             }
-        } else {
-            audioButton.backgroundTintList =
-                requireContext().getColorStateList(R.color.design_default_color_error)
-            audioButton.setOnClickListener {
-                Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG)
-                    .show()
-            }
+            it.isClickable = true
         }
     }
 
@@ -206,10 +224,10 @@ class RtcFragment : Fragment() {
      */
 
     private fun checkPermissions() {
+        // Ask for any permissions if necessary
         if (PermissionFragment.checkPermissionsChanged(requireContext()) ||
             PermissionFragment.checkShowDialog(requireActivity(), PERMISSIONS_REQUIRED.toTypedArray())) {
-
-            Log.d(TAG, "Permissions changed")
+            Log.d(TAG, "Permissions changed or show dialog")
             if (!PermissionFragment.checkAllPermissionsGranted(requireContext())) {
                 Log.d(TAG, "Checking permissions...")
                 Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
@@ -238,38 +256,30 @@ class RtcFragment : Fragment() {
 
     private fun onCameraPermissionGranted() {
         Log.d(TAG, "Camera permission was granted")
-        hideLocalViewMessage()
-        setVideoButtonListener()
+        hasVideoPermission = true
         if (isVideoEnabled) {
-            if(signalingClient.state != SignalingClient.State.CONNECTION_ESTABLISHED)
-                showConnectionBox(getString(R.string.conn_status_remote_client), howToConnectList, streamUrl)
             enableVideo()
-        } else {
-            disableVideo() // Also changes button style
         }
     }
 
     private fun onCameraPermissionDenied() {
         Log.d(TAG, "Camera permission was not granted")
+        hasVideoPermission = false
         disableVideo()
-        setVideoButtonListener(false)
-        showLocalViewMessage(getString(R.string.camera_permission_denied_info))
     }
 
     private fun onAudioPermissionGranted() {
         Log.d(TAG, "Audio permission was granted")
-        setAudioButtonListener()
+        hasAudioPermission = true
         if (isAudioEnabled) {
             enableAudio()
-        } else {
-            disableAudio() // Also changes button style
         }
     }
 
     private fun onAudioPermissionDenied() {
         Log.d(TAG, "Audio permission was not granted")
+        hasAudioPermission = false
         disableAudio()
-        setAudioButtonListener(false)
     }
 
     /**
@@ -287,6 +297,7 @@ class RtcFragment : Fragment() {
             super.onConnectionChange(newState)
             Log.d(TAG, "New connection state: $newState")
             if (newState == PeerConnection.PeerConnectionState.CONNECTED) {
+                // Launch in main thread so we can edit views
                 lifecycleScope.launchWhenStarted { hideConnectionBox() }
             }
         }
@@ -303,10 +314,15 @@ class RtcFragment : Fragment() {
     }
 
     /**
-     * RTC Client
+     * SDP Observer
      */
 
-
+    private fun createSdpObserver() = object : SimpleSdpObserver() {
+        override fun onCreateSuccess(p0: SessionDescription?) {
+            super.onCreateSuccess(p0)
+            signalingClient.send(p0)
+        }
+    }
 
     /**
      * Signaling Server
@@ -315,9 +331,8 @@ class RtcFragment : Fragment() {
     private fun createSignalingServerListener() = object : SignalingServerListener {
         override fun onConnectionEstablished() {
         if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
-                Log.d(TAG, "Remote client connected, sending offer...")
-                showConnectionBox(getString(R.string.conn_status_connecting))
-                rtcClient.offer(sdpObserver)
+                Log.d(TAG, "Remote client connected")
+                sendOffer()
             }
         }
 
@@ -338,8 +353,7 @@ class RtcFragment : Fragment() {
         override fun onConnectionEstablished() {
             if (signalingServer.connections >= 2) {
                 Log.d(TAG, "Remote client is already connected")
-                showConnectionBox(getString(R.string.conn_status_connecting))
-                rtcClient.offer(sdpObserver)
+                sendOffer()
             }
         }
 
@@ -371,6 +385,14 @@ class RtcFragment : Fragment() {
         }
     }
 
+    private fun sendOffer() {
+        Log.d(TAG, "Sending 'OFFER'...")
+        if (permissionsGranted.isNotEmpty()) {
+            showConnectionBox(getString(R.string.conn_status_connecting))
+        }
+        rtcClient.offer(sdpObserver)
+    }
+
     /**
      * Watchdog
      */
@@ -378,54 +400,38 @@ class RtcFragment : Fragment() {
     // TODO: watchdog restarts signaling server and client when they crash
 
     /**
-     * Media
+     * Buttons
      */
 
     private fun enableVideo() {
         Log.d(TAG, "Enabling video...")
-        videoButton.isClickable = false
-        videoButton.setImageResource(R.drawable.ic_videocam_black_24dp)
-        videoButton.backgroundTintList =
-            requireContext().getColorStateList(R.color.design_default_color_secondary)
         rtcClient.enableVideo(localView)
         isVideoEnabled = true
-        videoButton.isClickable = true
         Log.d(TAG, "Enabling video done")
+        updateUi()
     }
 
     private fun disableVideo() {
         Log.d(TAG, "Disabling video...")
-        videoButton.isClickable = false
-        videoButton.setImageResource(R.drawable.ic_videocam_off_black_24dp)
-        videoButton.backgroundTintList =
-            requireContext().getColorStateList(R.color.design_default_color_primary)
         rtcClient.disableVideo()
         isVideoEnabled = false
-        videoButton.isClickable = true
         Log.d(TAG, "Disabling video done")
+        updateUi()
     }
 
     private fun enableAudio() {
         Log.d(TAG, "Enabling audio...")
-        audioButton.isClickable = false
-        audioButton.setImageResource(R.drawable.ic_mic_black_24dp)
-        audioButton.backgroundTintList =
-            requireContext().getColorStateList(R.color.design_default_color_secondary)
         rtcClient.enableAudio()
         isAudioEnabled = true
-        audioButton.isClickable = true
         Log.d(TAG, "Enabling audio done")
+        updateUi()
     }
 
     private fun disableAudio() {
         Log.d(TAG, "Disabling audio...")
-        audioButton.isClickable = false
-        audioButton.setImageResource(R.drawable.ic_mic_off_black_24dp)
-        audioButton.backgroundTintList =
-            requireContext().getColorStateList(R.color.design_default_color_primary)
         rtcClient.disableAudio()
         isAudioEnabled = false
-        audioButton.isClickable = true
         Log.d(TAG, "Disabling audio done")
+        updateUi()
     }
 }

@@ -31,18 +31,15 @@ class RtcClient(
         initPeerConnectionFactory(context)
     }
 
-    private val iceServer = listOf(
-        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
-            .createIceServer()
-    )
+    private val iceServer = listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
 
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
-    private val mediaStream by lazy { buildMediaStream(STREAM_ID) }
+    private val mediaStream by lazy { peerConnectionFactory.createLocalMediaStream(STREAM_ID) }
     private val videoCapturer by lazy { getVideoCapturer(context) }
     private val videoSource by lazy { peerConnectionFactory.createVideoSource(false) }
     private val audioSource by lazy { peerConnectionFactory.createAudioSource(MediaConstraints()) }
-    private val peerConnection by lazy { buildPeerConnection(observer) }
-    private val surfaceTextureHelper by lazy { buildSurfaceTextureHelper() }
+    private val peerConnection by lazy { peerConnectionFactory.createPeerConnection(iceServer, observer) }
+    private val surfaceTextureHelper by lazy { SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext) }
 
     private fun initPeerConnectionFactory(context: Application) {
         val options = PeerConnectionFactory.InitializationOptions.builder(context)
@@ -64,15 +61,6 @@ class RtcClient(
             .createPeerConnectionFactory()
     }
 
-    private fun buildPeerConnection(observer: PeerConnection.Observer) = peerConnectionFactory.createPeerConnection(
-        iceServer,
-        observer
-    )
-
-    private fun buildMediaStream(id: String) = peerConnectionFactory.createLocalMediaStream(id)
-
-    private fun buildSurfaceTextureHelper() = SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext)
-
     private fun getVideoCapturer(context: Context) =
         Camera2Enumerator(context).run {
             deviceNames.find {
@@ -83,7 +71,7 @@ class RtcClient(
         }
 
     fun initSurfaceView(view: SurfaceViewRenderer) = view.run {
-        setMirror(true)
+        setMirror(true) // TODO: Read from settings
         setEnableHardwareScaler(true)
         init(rootEglBase.eglBaseContext, null)
     }
@@ -92,8 +80,8 @@ class RtcClient(
      * Media Stream
      */
 
-    private fun reloadMediaStream() {
-        Log.d(TAG, "Reloading stream...")
+    private fun updateMediaStream() {
+        Log.d(TAG, "Updating stream...")
 
         if (!isVideoInitialized && videoTrack != null) {
             Log.d(TAG, "Initializing video track...")
@@ -122,7 +110,7 @@ class RtcClient(
             }
         }
 
-        Log.d(TAG, "Reloading stream done")
+        Log.d(TAG, "Updating stream done")
     }
 
     /**
@@ -153,8 +141,7 @@ class RtcClient(
             startVideo()
         }
         videoTrack?.setEnabled(true)
-
-        reloadMediaStream()
+        updateMediaStream()
     }
 
     fun disableVideo() {
@@ -174,8 +161,7 @@ class RtcClient(
             initAudio()
         }
         audioTrack?.setEnabled(true)
-
-        reloadMediaStream()
+        updateMediaStream()
     }
 
     fun disableAudio() {
