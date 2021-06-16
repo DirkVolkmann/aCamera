@@ -6,11 +6,8 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.*
 import androidx.fragment.app.Fragment
-import android.widget.ImageView
-import android.widget.ProgressBar
-import android.widget.TextView
-import android.widget.Toast
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.isGone
@@ -39,8 +36,6 @@ class RtcFragment : Fragment() {
     // Views
     private lateinit var container: ConstraintLayout
     private lateinit var localView: SurfaceViewRenderer
-    private lateinit var audioButton: ImageView
-    private lateinit var videoButton: ImageView
 
     // Flags
     private var isVideoEnabled = true
@@ -75,8 +70,6 @@ class RtcFragment : Fragment() {
         // Initialize views
         container = view as ConstraintLayout
         localView = container.findViewById(R.id.local_view)
-        audioButton = container.findViewById(R.id.button_audio)
-        videoButton = container.findViewById(R.id.button_video)
 
         // Get values from settings
         streamUrl = "172.16.42.3:8080" // TODO: Read IP from device and port from app settings
@@ -143,8 +136,16 @@ class RtcFragment : Fragment() {
 
     private fun updateUi() {
 
+        // Remove previous button container
+        container.findViewById<ConstraintLayout>(R.id.button_container)?.let {
+            container.removeView(it)
+        }
+
+        // Inflate a new view containing all the buttons
+        val controls = View.inflate(requireContext(), R.layout.button_container, container)
+
         // Update video button
-        videoButton.let {
+        controls.findViewById<ImageButton>(R.id.button_video).let {
             it.isClickable = false
             if (hasVideoPermission) {
                 // Set listener if permission is granted
@@ -185,7 +186,7 @@ class RtcFragment : Fragment() {
         }
 
         // Update audio button
-        audioButton.let {
+        controls.findViewById<ImageButton>(R.id.button_audio).let {
             it.isClickable = false
             if (hasAudioPermission) {
                 // Set listener if permission is granted
@@ -339,7 +340,9 @@ class RtcFragment : Fragment() {
         override fun onConnectionAborted() {
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
                 Log.d(TAG,"Remote client disconnected")
-                showConnectionBox(getString(R.string.conn_status_remote_client), howToConnectList, streamUrl)
+                lifecycleScope.launchWhenStarted {
+                    showConnectionBox(getString(R.string.conn_status_remote_client), howToConnectList, streamUrl)
+                }
             }
         }
     }
