@@ -8,7 +8,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.fragment.app.Fragment
-import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.isGone
 import androidx.lifecycle.lifecycleScope
@@ -72,8 +71,11 @@ class RtcFragment : Fragment() {
         localView = container.findViewById(R.id.local_view)
 
         // Get values from settings
-        streamUrl = "172.16.42.3:8080" // TODO: Read IP from device and port from app settings
+        streamUrl = "https://172.16.42.3:8080" // TODO: Read IP from device and port from app settings
         howToConnectList = SpannableStringBuilder(buildBulletList(resources.getStringArray(R.array.how_to_connect), 40))
+
+        // Show status
+        showStatusBox(getString(R.string.status_initializing))
 
         // Initialize networking services
         signalingClient = SignalingClient(createSignalingClientListener())
@@ -101,37 +103,50 @@ class RtcFragment : Fragment() {
      * UI
      */
 
-    private fun showConnectionBox(text: CharSequence, textSecondary: CharSequence? = null, textNotice: CharSequence? = null, showProgressBar: Boolean = true) {
-        val connectionText = container.findViewById<TextView>(R.id.connection_text)
-        val connectionTextSecondary = container.findViewById<TextView>(R.id.connection_text_secondary)
-        val connectionTextNotice = container.findViewById<TextView>(R.id.connection_text_notice)
-        val connectionProgress = container.findViewById<ProgressBar>(R.id.connection_progress)
-        val connectionContainer = container.findViewById<CardView>(R.id.connection_container)
-
-        connectionText.text = text
-        connectionText.isGone = false
-
-        if (textSecondary != null) {
-            connectionTextSecondary.text = textSecondary
-            connectionTextSecondary.isGone = false
-        } else {
-            connectionTextSecondary.isGone = true
+    private fun showStatusBox(text: CharSequence, textSecondary: CharSequence? = null, textImportant: CharSequence? = null, showProgressBar: Boolean = true) {
+        // Remove the previous status container
+        container.findViewById<ConstraintLayout>(R.id.status_container)?.let {
+            container.removeView(it)
         }
 
-        if (textNotice != null) {
-            connectionTextNotice.text = textNotice
-            connectionTextNotice.isGone = false
-        } else {
-            connectionTextNotice.isGone = true
+        // Inflate new view containing the status box
+        val statusContainer = View.inflate(requireContext(), R.layout.status_container, container)
+
+        // Display the main text
+        statusContainer.findViewById<TextView>(R.id.status_text_headline).let {
+            it.text = text
+            it.isGone = false
         }
 
-        connectionProgress.isGone = (!showProgressBar)
+        // Display the secondary text if available
+        statusContainer.findViewById<TextView>(R.id.status_text_secondary).let {
+            if (textSecondary != null) {
+                it.text = textSecondary
+                it.isGone = false
+            } else {
+                it.isGone = true
+            }
+        }
 
-        connectionContainer.isGone = false
+        // Display the important notice if available
+        statusContainer.findViewById<TextView>(R.id.status_text_important).let {
+            if (textImportant != null) {
+                it.text = textImportant
+                it.isGone = false
+            } else {
+                it.isGone = true
+            }
+        }
+
+        // Show or hide the progress bar
+        statusContainer.findViewById<ProgressBar>(R.id.status_progressbar).isGone = (!showProgressBar)
     }
 
-    private fun hideConnectionBox() {
-        container.findViewById<CardView>(R.id.connection_container).isGone = true
+    private fun hideStatusBox() {
+        // Remove the status container
+        container.findViewById<ConstraintLayout>(R.id.status_container)?.let {
+            container.removeView(it)
+        }
     }
 
     private fun updateUi() {
@@ -299,7 +314,7 @@ class RtcFragment : Fragment() {
             Log.d(TAG, "New connection state: $newState")
             if (newState == PeerConnection.PeerConnectionState.CONNECTED) {
                 // Launch in main thread so we can edit views
-                lifecycleScope.launchWhenStarted { hideConnectionBox() }
+                lifecycleScope.launchWhenStarted { hideStatusBox() }
             }
         }
 
@@ -331,17 +346,27 @@ class RtcFragment : Fragment() {
 
     private fun createSignalingServerListener() = object : SignalingServerListener {
         override fun onConnectionEstablished() {
-        if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
+            // TODO: The client should tell which type it is
+            // Check if local client was already connected
+            if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
                 Log.d(TAG, "Remote client connected")
                 sendOffer()
+            } else {
+                // Launch in main thread so we can edit views
+                lifecycleScope.launchWhenStarted {
+                    showStatusBox(getString(R.string.status_waiting), howToConnectList, streamUrl)
+                }
             }
         }
 
         override fun onConnectionAborted() {
+            // TODO: The client should tell which type it is
+            // Check if local client is still connected
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
                 Log.d(TAG,"Remote client disconnected")
+                // Launch in main thread so we can edit views
                 lifecycleScope.launchWhenStarted {
-                    showConnectionBox(getString(R.string.conn_status_remote_client), howToConnectList, streamUrl)
+                    showStatusBox(getString(R.string.status_waiting), howToConnectList, streamUrl)
                 }
             }
         }
@@ -364,15 +389,15 @@ class RtcFragment : Fragment() {
             if (signalingClient.retriesDone < signalingClient.retriesTotal) {
                 signalingClient.connect(1000)
             } else {
-                showConnectionBox(
-                    getString(R.string.conn_status_failed),
+                showStatusBox(
+                    getString(R.string.status_failed),
                     showProgressBar = false
                 )
             }
         }
 
         override fun onConnectionAborted() {
-            showConnectionBox(getString(R.string.conn_status_aborted), showProgressBar = false)
+            showStatusBox(getString(R.string.status_aborted), showProgressBar = false)
         }
 
         override fun onOfferReceived(description: SessionDescription) {
@@ -390,9 +415,6 @@ class RtcFragment : Fragment() {
 
     private fun sendOffer() {
         Log.d(TAG, "Sending 'OFFER'...")
-        if (permissionsGranted.isNotEmpty()) {
-            showConnectionBox(getString(R.string.conn_status_connecting))
-        }
         rtcClient.offer(sdpObserver)
     }
 
