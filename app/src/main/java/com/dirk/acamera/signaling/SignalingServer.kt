@@ -20,14 +20,15 @@ private const val TAG = "aCamera SignalingServer"
 
 class SignalingServer(
     private val listener: SignalingServerListener,
-    private val context: Context
+    private val context: Context,
+    val port: Int = SOCKET_PORT_DEFAULT
 ) : CoroutineScope {
 
     companion object {
         private const val ASSETS_FOLDER = "web"
 
-        private const val SOCKET_PORT = 8080 // TODO: Get port from settings
-        private const val SOCKET_PATH = "/socket"
+        const val SOCKET_PORT_DEFAULT = 8080
+        const val SOCKET_PATH = "/socket"
         private const val SOCKET_PING_PERIOD_SECONDS = 60L
         private const val SOCKET_TIMEOUT_SECONDS = 15L
         private const val SOCKET_MAX_FRAME_SIZE = Long.MAX_VALUE
@@ -53,7 +54,7 @@ class SignalingServer(
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO + job
 
-    private val server = embeddedServer(Netty, SOCKET_PORT) {
+    private val server = embeddedServer(Netty, port) {
         if (!resourcesReady) copyWebResources()
 
         // Web socket is used for local and remote signaling clients

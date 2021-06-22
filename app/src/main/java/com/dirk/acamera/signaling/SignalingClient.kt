@@ -24,15 +24,16 @@ private const val TAG = "aCamera SignalingClient"
 
 @ObsoleteCoroutinesApi
 class SignalingClient(
-    private val listener: SignalingClientListener
+    private val listener: SignalingClientListener,
+    val port: Int = SOCKET_PORT_DEFAULT
 ) : CoroutineScope {
 
-    // TODO: Connection parameters should be read from settings
+    // TODO: Connection parameters (port) should be read from settings
     companion object {
         // Connection parameters
-        private const val SOCKET_HOST = "127.0.0.1"
-        private const val SOCKET_PORT = 8080
-        private const val SOCKET_PATH = "/socket"
+        const val SOCKET_HOST = "127.0.0.1"
+        const val SOCKET_PORT_DEFAULT = SignalingServer.SOCKET_PORT_DEFAULT
+        const val SOCKET_PATH = SignalingServer.SOCKET_PATH
 
         // JSON strings
         private const val JSON_TYPE = "type"
@@ -84,12 +85,12 @@ class SignalingClient(
         delay(waitMillis)
 
         retriesDone++
-        Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$SOCKET_PORT$SOCKET_PATH' try $retriesDone of $retriesTotal")
+        Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$port$SOCKET_PATH' try $retriesDone of $retriesTotal")
 
         try {
             client.ws(
                 host = SOCKET_HOST,
-                port = SOCKET_PORT,
+                port = port,
                 path = SOCKET_PATH
             ) {
                 // At this point the connection is established
