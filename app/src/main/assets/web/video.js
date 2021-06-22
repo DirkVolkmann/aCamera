@@ -3,12 +3,12 @@
  */
 
 let webSocket;
-const host = "172.16.42.3" //windows.location.host;
-const port = "8080" //windows.location.port;
-const path = "/socket";
-const ssl = false;
-const protocol = ssl ? "wss" : "ws";
-const webSocketUrl = protocol + "://" + host + ":" + port + path;
+const host = window.location.hostname;
+const port = window.location.port;
+const path = '/socket';
+const ssl = document.location.protocol == 'https:';
+const protocol = ssl ? 'wss' : 'ws';
+const webSocketUrl = protocol + '://' + host + ':' + port + path;
 
 /**
  * Peer connection configuration
@@ -37,9 +37,8 @@ remoteVideo.addEventListener('loadedmetadata', function() {
 
 function init() {
     // Create web socket
-    console.log('Initializing web socket...');
+    console.log('Connecting to web socket: ', webSocketUrl);
     webSocket = new WebSocket(webSocketUrl);
-    console.log('Completed initializing web socket');
     // Add ws listeners
     webSocket.onopen = (event) => wsOnOpen(event);
     webSocket.onmessage = (event) => wsOnMessage(event);
@@ -78,7 +77,7 @@ function wsOnMessage(event) {
 
     // Offer received?
     if (message.type?.toLowerCase() == 'offer') {
-        console.log("Offer reveived!");
+        console.log("Offer received!");
         // JS is very picky about the description
         // type has to be lowercase
         message.type = message.type.toLowerCase();
@@ -107,7 +106,11 @@ function wsOnError(error) {
 }
 
 function wsOnClose(event) {
-    console.log('Socket was closed: ', event);
+    let message = 'Socket was closed';
+    if (event.reason) {
+        message += ': ' + event.reason;
+    }
+    console.log(message);
 
     console.log('Closing peer connection...');
     peerConnection.close();
@@ -151,7 +154,7 @@ async function createAnswer() {
     console.log("Creating answer...");
     try {
         const answer = await peerConnection.createAnswer();
-        console.log("Answer created: ", answer.sdp);
+        console.log("Answer created:\n", answer.sdp);
         onCreateAnswerSuccess(answer);
     } catch (error) {
         onCreateAnswerFailed(error);
