@@ -37,7 +37,7 @@ remoteVideo.addEventListener('loadedmetadata', function() {
 
 function init() {
     // Create web socket
-    console.log('Connecting to web socket: ', webSocketUrl);
+    console.log('Connecting to web socket:', webSocketUrl);
     webSocket = new WebSocket(webSocketUrl);
     // Add ws listeners
     webSocket.onopen = (event) => wsOnOpen(event);
