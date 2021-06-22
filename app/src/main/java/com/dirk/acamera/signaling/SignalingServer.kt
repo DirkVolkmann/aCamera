@@ -86,9 +86,10 @@ class SignalingServer(
                     removeSession(id)
                 }
             }
-            static("/") {
+            static("") {
                 files(context.filesDir)
             }
+            default(File(context.filesDir, "index.html"))
         }
     }
 
@@ -109,10 +110,11 @@ class SignalingServer(
     }
 
     private fun copyWebResources() = launch(Dispatchers.IO) {
+        Log.d(TAG, "Copying web resources started...")
         val files = context.assets.list(ASSETS_FOLDER)
 
         files?.forEach { path ->
-            println(path)
+            Log.v(TAG, "Copy resource: $path")
             val input = context.assets.open("$ASSETS_FOLDER/$path")
             val outFile = File(context.filesDir, path)
             val outStream = FileOutputStream(outFile)
@@ -122,6 +124,7 @@ class SignalingServer(
         }
 
         resourcesReady = true
+        Log.d(TAG, "Copying web resources done")
     }
 
     private fun updateConnectionCount() {
