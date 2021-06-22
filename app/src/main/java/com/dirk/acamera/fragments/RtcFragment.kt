@@ -7,9 +7,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
-import androidx.fragment.app.Fragment
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.isGone
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.Navigation
 import com.dirk.acamera.*
@@ -21,11 +21,13 @@ import com.dirk.acamera.signaling.SignalingClientListener
 import com.dirk.acamera.signaling.SignalingServer
 import com.dirk.acamera.signaling.SignalingServerListener
 import com.dirk.acamera.utils.buildBulletList
+import com.dirk.acamera.utils.getDeviceIp
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 import org.webrtc.IceCandidate
 import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceViewRenderer
+
 
 private const val TAG = "aCamera RtcFragment"
 
@@ -49,6 +51,8 @@ class RtcFragment : Fragment() {
     private lateinit var rtcClient: RtcClient
 
     // Other
+    private lateinit var deviceIp: String
+    private var port: Int = 8080 // TODO: Read from settings
     private lateinit var streamUrl: String
     private lateinit var howToConnectList: SpannableStringBuilder
 
@@ -71,15 +75,16 @@ class RtcFragment : Fragment() {
         localView = container.findViewById(R.id.local_view)
 
         // Get values from settings
-        streamUrl = "https://172.16.42.3:8080" // TODO: Read IP from device and port from app settings
+        deviceIp = getDeviceIp(requireContext())
+        streamUrl = "https://$deviceIp:$port"
         howToConnectList = SpannableStringBuilder(buildBulletList(resources.getStringArray(R.array.how_to_connect), 40))
 
         // Show status
         showStatusBox(getString(R.string.status_initializing))
 
         // Initialize networking services
-        signalingClient = SignalingClient(createSignalingClientListener())
-        signalingServer = SignalingServer(createSignalingServerListener(), requireContext())
+        signalingClient = SignalingClient(createSignalingClientListener(), port)
+        signalingServer = SignalingServer(createSignalingServerListener(), requireContext(), port)
         sdpObserver = createSdpObserver()
         rtcClient = RtcClient(requireActivity().application, createPeerConnectionObserver())
         rtcClient.initSurfaceView(localView)

@@ -1,8 +1,11 @@
 package com.dirk.acamera.utils
 
+import android.content.Context
+import android.net.wifi.WifiManager
 import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.format.Formatter
 import android.text.style.BulletSpan
 
 fun buildBulletList(array: Array<out String>, gapWidth: Int = BulletSpan.STANDARD_GAP_WIDTH): CharSequence {
@@ -15,4 +18,10 @@ fun buildBulletList(array: Array<out String>, gapWidth: Int = BulletSpan.STANDAR
     }
     sStringBuilder.delete(sStringBuilder.length - 1, sStringBuilder.length) // delete last "\n"
     return sStringBuilder
+}
+
+// TODO: Add support for IPv6 and/or hostname
+fun getDeviceIp(context: Context): String {
+    val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    return Formatter.formatIpAddress(wifiManager.connectionInfo.ipAddress)
 }

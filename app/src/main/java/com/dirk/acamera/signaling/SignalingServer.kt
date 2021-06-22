@@ -25,17 +25,19 @@ private const val TAG = "aCamera SignalingServer"
 
 class SignalingServer(
     private val listener: SignalingServerListener,
-    private val context: Context
+    private val context: Context,
+    val port: Int = SOCKET_PORT_DEFAULT
 ) : CoroutineScope {
 
     companion object {
         private const val ASSETS_FOLDER = "web"
 
-        private const val SERVER_PORT = 8080 // TODO: Get port from settings
         private const val SERVER_STOP_GRACE_MILLIS = 5000L
         private const val SERVER_STOP_TIMEOUT_MILLIS = 10000L
 
         private const val SOCKET_PATH = "/socket"
+        const val SOCKET_PORT_DEFAULT = 8080
+        const val SOCKET_PATH = "/socket"
         private const val SOCKET_PING_PERIOD_SECONDS = 60L
         private const val SOCKET_TIMEOUT_SECONDS = 15L
         private const val SOCKET_MAX_FRAME_SIZE = Long.MAX_VALUE
@@ -149,12 +151,13 @@ class SignalingServer(
                             removeSession(id)
                         }
                     }
-                    static("/") {
+                    static("") {
                         files(context.filesDir)
                     }
+                    default(File(context.filesDir, "index.html"))
                 }
             }
-        })
+        }
     }
 
     private fun start() = launch {
@@ -170,10 +173,11 @@ class SignalingServer(
     }
 
     private fun copyWebResources() = launch(Dispatchers.IO) {
+        Log.d(TAG, "Copying web resources started...")
         val files = context.assets.list(ASSETS_FOLDER)
 
         files?.forEach { path ->
-            println(path)
+            Log.v(TAG, "Copy resource: $path")
             val input = context.assets.open("$ASSETS_FOLDER/$path")
             val outFile = File(context.filesDir, path)
             val outStream = FileOutputStream(outFile)
@@ -183,6 +187,7 @@ class SignalingServer(
         }
 
         resourcesReady = true
+        Log.d(TAG, "Copying web resources done")
     }
 
     private fun updateConnectionCount() {
