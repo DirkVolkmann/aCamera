@@ -172,10 +172,20 @@ class RtcFragment : Fragment() {
         val colorDeniedBackground = requireContext().getColorStateList(R.color.design_default_color_error)
         val colorDeniedIcon = requireContext().getColorStateList(R.color.design_default_color_on_primary)
 
-        // Update video button
+        val buttonSwitch = controls.findViewById<ImageButton>(R.id.button_switch_camera)
+
+        /**
+         * Update video button
+         */
         controls.findViewById<ImageButton>(R.id.button_video).let {
             it.isClickable = false
+
             if (hasVideoPermission) {
+
+                /**
+                 * Permission granted
+                 */
+
                 // Set listener if permission is granted
                 it.setOnClickListener {
                     if (isVideoEnabled) {
@@ -184,6 +194,11 @@ class RtcFragment : Fragment() {
                         enableVideo()
                     }
                 }
+                // Set listener for switch button
+                buttonSwitch.setOnClickListener {
+                    rtcClient.switchCamera()
+                }
+
                 // Set button style
                 if (isVideoEnabled) {
                     // Button is enabled
@@ -196,30 +211,55 @@ class RtcFragment : Fragment() {
                     it.backgroundTintList = colorDisabledBackground
                     it.imageTintList = colorDisabledIcon
                 }
-                // Hide message on local view
+                // Set style for switch button
+                buttonSwitch.backgroundTintList = colorEnabledBackground
+                buttonSwitch.imageTintList = colorEnabledIcon
+
+                // Hide local view message
                 container.findViewById<TextView>(R.id.local_view_message).isGone = true
+
             } else {
+
+                /**
+                 * Permission denied
+                 */
+
                 // Set listener if permission is denied
                 it.setOnClickListener {
                     Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
                 }
+                // No new listener for switch button because it won't be clickable
+                buttonSwitch.isClickable = false
+
                 // Button style if no permission
                 it.setImageResource(R.drawable.ic_videocam_off_black_24dp)
                 it.backgroundTintList = colorDeniedBackground
                 it.imageTintList = colorDeniedIcon
+                buttonSwitch.backgroundTintList = colorDeniedBackground
+                buttonSwitch.imageTintList = colorDeniedIcon
+
                 // Show local view message
                 container.findViewById<TextView>(R.id.local_view_message).let { textView ->
                     textView.text = getString(R.string.camera_permission_denied_info)
                     textView.isGone = false
                 }
             }
+
             it.isClickable = true
         }
 
-        // Update audio button
+        /**
+         * Update audio button
+         */
         controls.findViewById<ImageButton>(R.id.button_audio).let {
             it.isClickable = false
+
             if (hasAudioPermission) {
+
+                /**
+                 * Permission granted
+                 */
+
                 // Set listener if permission is granted
                 it.setOnClickListener {
                     if (isAudioEnabled) {
@@ -228,6 +268,7 @@ class RtcFragment : Fragment() {
                         enableAudio()
                     }
                 }
+
                 // Set button style
                 if (isAudioEnabled) {
                     // Button is enabled
@@ -240,16 +281,24 @@ class RtcFragment : Fragment() {
                     it.backgroundTintList = colorDisabledBackground
                     it.imageTintList = colorDisabledIcon
                 }
+
             } else {
+
+                /**
+                 * Permission denied
+                 */
+
                 // Set listener if permission is denied
                 it.setOnClickListener {
                     Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
                 }
+
                 // Button style if no permission
                 it.setImageResource(R.drawable.ic_mic_off_black_24dp)
                 it.backgroundTintList = colorDeniedBackground
                 it.imageTintList = colorDeniedIcon
             }
+
             it.isClickable = true
         }
     }

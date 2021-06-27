@@ -1,7 +1,6 @@
 package com.dirk.acamera.rtc
 
 import android.app.Application
-import android.content.Context
 import android.util.Log
 import org.webrtc.*
 
@@ -11,35 +10,42 @@ class RtcClient(
     context: Application,
     observer: PeerConnection.Observer
 ) {
+    enum class Camera {
+        NONE,
+        FRONT,
+        BACK
+    }
 
     companion object {
         private const val VIDEO_ID = "acamera_video"
         private const val AUDIO_ID = "acamera_audio"
         private const val STREAM_ID = "acamera_stream"
-
     }
 
-    private val rootEglBase: EglBase = EglBase.create()
+    private lateinit var surfaceViewRenderer: SurfaceViewRenderer
 
     private var videoTrack: VideoTrack? = null
     private var audioTrack: AudioTrack? = null
     private var isVideoInitialized = false
     private var isAudioInitialized = false
     private var isStreamInitialized = false
+    private var cameraUsed = Camera.NONE
 
-    init {
-        initPeerConnectionFactory(context)
-    }
-
+    private val rootEglBase: EglBase = EglBase.create()
     private val iceServer = listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
-
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
     private val mediaStream by lazy { peerConnectionFactory.createLocalMediaStream(STREAM_ID) }
-    private val videoCapturer by lazy { getVideoCapturer(context) }
+    private val camera2Enumerator by lazy { Camera2Enumerator(context) }
+    private val cameraSwitchHandler by lazy { createCameraSwitchHandler() }
+    private val videoCapturer by lazy { getLocalVideoCapturer() }
     private val videoSource by lazy { peerConnectionFactory.createVideoSource(false) }
     private val audioSource by lazy { peerConnectionFactory.createAudioSource(MediaConstraints()) }
     private val peerConnection by lazy { peerConnectionFactory.createPeerConnection(iceServer, observer) }
     private val surfaceTextureHelper by lazy { SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext) }
+
+    init {
+        initPeerConnectionFactory(context)
+    }
 
     private fun initPeerConnectionFactory(context: Application) {
         val options = PeerConnectionFactory.InitializationOptions.builder(context)
@@ -61,19 +67,61 @@ class RtcClient(
             .createPeerConnectionFactory()
     }
 
-    private fun getVideoCapturer(context: Context) =
-        Camera2Enumerator(context).run {
-            deviceNames.find {
-                isFrontFacing(it)
-            }?.let {
-                createCapturer(it, null)
-            } ?: throw IllegalStateException()
-        }
+    /**
+     * Camera
+     */
+
+    private fun getLocalVideoCapturer() = camera2Enumerator.run {
+        getFrontCamera()?.let {
+            createCapturer(it, null).also {
+                surfaceViewRenderer.setMirror(true) // TODO: Read from settings?
+                cameraUsed = Camera.FRONT
+            }
+        } ?: getBackCamera()?.let {
+            createCapturer(it, null).also {
+                surfaceViewRenderer.setMirror(false)
+                cameraUsed = Camera.BACK
+            }
+        } ?: throw IllegalStateException()
+    }
 
     fun initSurfaceView(view: SurfaceViewRenderer) = view.run {
-        setMirror(true) // TODO: Read from settings
         setEnableHardwareScaler(true)
         init(rootEglBase.eglBaseContext, null)
+    }.also {
+        surfaceViewRenderer = view
+    }
+
+    private fun getFrontCamera() = camera2Enumerator.run {
+        deviceNames.find {
+            isFrontFacing(it)
+        }
+    }
+
+    private fun getBackCamera() = camera2Enumerator.run {
+        deviceNames.find {
+            isBackFacing(it)
+        }
+    }
+
+    fun switchCamera() {
+        videoCapturer.switchCamera(cameraSwitchHandler)
+    }
+
+    private fun createCameraSwitchHandler() = object : CameraVideoCapturer.CameraSwitchHandler {
+        override fun onCameraSwitchDone(p0: Boolean) {
+            if (cameraUsed == Camera.FRONT) {
+                cameraUsed = Camera.BACK
+                surfaceViewRenderer.setMirror(false)
+            } else {
+                cameraUsed = Camera.FRONT
+                surfaceViewRenderer.setMirror(true)
+            }
+        }
+
+        override fun onCameraSwitchError(p0: String?) {
+            Log.e(TAG, "Could not switch camera: $p0", )
+        }
     }
 
     /**
