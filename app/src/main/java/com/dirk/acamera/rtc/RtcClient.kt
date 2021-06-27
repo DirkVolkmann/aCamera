@@ -74,13 +74,13 @@ class RtcClient(
     private fun getLocalVideoCapturer() = camera2Enumerator.run {
         getFrontCamera()?.let {
             createCapturer(it, null).also {
-                surfaceViewRenderer.setMirror(true) // TODO: Read from settings?
                 cameraUsed = Camera.FRONT
+                surfaceViewRenderer.setMirror(true)
             }
         } ?: getBackCamera()?.let {
             createCapturer(it, null).also {
-                surfaceViewRenderer.setMirror(false)
                 cameraUsed = Camera.BACK
+                surfaceViewRenderer.setMirror(false)
             }
         } ?: throw IllegalStateException()
     }

@@ -1,0 +1,32 @@
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:state_pressed="true">
+    <shape android:shape="oval">
+      <stroke
+          android:width="@dimen/stroke_small"
+          android:color="@color/button_pressed" />
+      <size
+          android:width="@dimen/round_button_medium"
+          android:height="@dimen/round_button_medium" />
+    </shape>
+  </item>
+  <item android:state_focused="true">
+    <shape android:shape="oval">
+      <stroke
+          android:width="@dimen/stroke_small"
+          android:color="@color/button_focused" />
+      <size
+          android:width="@dimen/round_button_medium"
+          android:height="@dimen/round_button_medium" />
+    </shape>
+  </item>
+  <item>
+    <shape android:shape="oval">
+      <stroke
+          android:width="@dimen/stroke_small"
+          android:color="@color/button_active" />
+      <size
+          android:width="@dimen/round_button_medium"
+          android:height="@dimen/round_button_medium" />
+    </shape>
+  </item>
+</selector>
