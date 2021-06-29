@@ -21,7 +21,7 @@ private const val TAG = "aCamera SignalingServer"
 class SignalingServer(
     private val listener: SignalingServerListener,
     private val context: Context,
-    val port: Int = SOCKET_PORT_DEFAULT
+    port: Int = SOCKET_PORT_DEFAULT
 ) : CoroutineScope {
 
     companion object {
@@ -94,19 +94,17 @@ class SignalingServer(
         }
     }
 
-    init {
-        start()
-    }
-
-    private fun start() = launch {
+    fun start() = launch {
         Log.d(TAG, "Running server thread...")
-        state = try {
-            server.start(wait = true)
+        try {
+            server.start(wait = false)
             Log.d(TAG, "Running server thread success")
-            State.RUNNING
+            state = State.RUNNING
+            listener.onServerRunning()
         } catch (error: Exception) {
             Log.d(TAG, "Running server thread failed")
-            State.FAILED
+            state = State.FAILED
+            listener.onServerFailed()
         }
     }
 
@@ -137,14 +135,14 @@ class SignalingServer(
         Log.v(TAG, "New client connected with ID: $id")
         sessions[id] = session
         updateConnectionCount()
-        launch(Dispatchers.Main) { listener.onConnectionEstablished() }
+        listener.onConnectionEstablished()
     }
 
     private fun removeSession(id: String) {
         Log.v(TAG, "Removing client with ID: $id")
         sessions.remove(id)
         updateConnectionCount()
-        launch(Dispatchers.Main) { listener.onConnectionAborted() }
+        listener.onConnectionAborted()
     }
 
     fun stop() = launch {

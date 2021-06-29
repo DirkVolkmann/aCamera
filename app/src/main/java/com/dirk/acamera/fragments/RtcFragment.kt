@@ -52,8 +52,8 @@ class RtcFragment : Fragment() {
     private lateinit var rtcClient: RtcClient
 
     // Other
-    private lateinit var deviceIp: String
     private var port: Int = 8080 // TODO: Read from settings
+    private lateinit var deviceIp: String
     private lateinit var streamUrl: String
     private lateinit var howToConnectList: SpannableStringBuilder
 
@@ -84,8 +84,10 @@ class RtcFragment : Fragment() {
         showStatusBox(getString(R.string.status_initializing))
 
         // Initialize networking services
-        signalingClient = SignalingClient(createSignalingClientListener(), port)
-        signalingServer = SignalingServer(createSignalingServerListener(), requireContext(), port)
+        signalingServer = SignalingServer(createSignalingServerListener(), requireContext(), port).also {
+            it.start()
+        }
+        signalingClient = SignalingClient(createSignalingClientListener())
         sdpObserver = createSdpObserver()
         rtcClient = RtcClient(requireActivity().application, createPeerConnectionObserver())
         rtcClient.initSurfaceView(localView)
@@ -189,16 +191,20 @@ class RtcFragment : Fragment() {
                  */
 
                 // Set listener if permission is granted
-                it.setOnClickListener {
+                it.setOnClickListener { _ ->
+                    it.isClickable = false
                     if (isVideoEnabled) {
                         disableVideo()
                     } else {
                         enableVideo()
                     }
+                    it.isClickable = true
                 }
                 // Set listener for switch button
-                buttonSwitch.setOnClickListener {
+                buttonSwitch.setOnClickListener { _ ->
+                    it.isClickable = false
                     rtcClient.switchCamera()
+                    it.isClickable = true
                 }
 
                 // Set button style
@@ -470,6 +476,14 @@ class RtcFragment : Fragment() {
      */
 
     private fun createSignalingServerListener() = object : SignalingServerListener {
+        override fun onServerRunning() {
+            signalingClient.connect(port = port)
+        }
+
+        override fun onServerFailed() {
+
+        }
+
         override fun onConnectionEstablished() {
             // TODO: The client should tell which type it is
             // Check if local client was already connected
@@ -512,17 +526,18 @@ class RtcFragment : Fragment() {
 
         override fun onConnectionFailed() {
             if (signalingClient.retriesDone < signalingClient.retriesTotal) {
-                signalingClient.connect(1000)
+                signalingClient.connect(port = port, waitMillis = 1000)
             } else {
-                showStatusBox(
-                    getString(R.string.status_failed),
-                    showProgressBar = false
-                )
+                lifecycleScope.launchWhenStarted {
+                    showStatusBox(getString(R.string.status_failed), showProgressBar = false)
+                }
             }
         }
 
         override fun onConnectionAborted() {
-            showStatusBox(getString(R.string.status_aborted), showProgressBar = false)
+            lifecycleScope.launchWhenStarted {
+                showStatusBox(getString(R.string.status_aborted), showProgressBar = false)
+            }
         }
 
         override fun onOfferReceived(description: SessionDescription) {
@@ -565,39 +580,39 @@ class RtcFragment : Fragment() {
         Log.d(TAG, "Disabling video...")
         rtcClient.disableVideo()
         isVideoEnabled = false
-        Log.d(TAG, "Disabling video done")
         updateUi()
+        Log.d(TAG, "Disabling video done")
     }
 
     private fun enableAudio() {
         Log.d(TAG, "Enabling audio...")
         rtcClient.enableAudio()
         isAudioEnabled = true
-        Log.d(TAG, "Enabling audio done")
         updateUi()
+        Log.d(TAG, "Enabling audio done")
     }
 
     private fun disableAudio() {
         Log.d(TAG, "Disabling audio...")
         rtcClient.disableAudio()
         isAudioEnabled = false
-        Log.d(TAG, "Disabling audio done")
         updateUi()
+        Log.d(TAG, "Disabling audio done")
     }
 
     private fun enableFlashlight() {
         Log.d(TAG, "Enabling flash...")
         rtcClient.setFlashlight(true)
         isFlashEnabled = true
-        Log.d(TAG, "Enabling flash done")
         updateUi()
+        Log.d(TAG, "Enabling flash done")
     }
 
     private fun disableFlashlight() {
         Log.d(TAG, "Disabling flash...")
         rtcClient.setFlashlight(false)
         isFlashEnabled = false
-        Log.d(TAG, "Disabling flash done")
         updateUi()
+        Log.d(TAG, "Disabling flash done")
     }
 }
