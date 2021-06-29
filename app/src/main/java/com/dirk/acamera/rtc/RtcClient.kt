@@ -2,8 +2,12 @@ package com.dirk.acamera.rtc
 
 import android.app.Application
 import android.content.Context
+import android.graphics.ImageFormat
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.util.Log
+import com.dirk.acamera.utils.Ratio
+import com.dirk.acamera.utils.reduceRatio
 import org.webrtc.*
 
 private const val TAG = "aCamera RtcClient"
@@ -33,6 +37,8 @@ class RtcClient(
     private var isStreamInitialized = false
     private var cameraUsed = Camera.NONE
     private var isFlashEnabled = false
+    private var resolution = Ratio(1280, 720)
+    private var framerate = 30
 
     private val rootEglBase: EglBase = EglBase.create()
     private val iceServer = listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
@@ -44,7 +50,7 @@ class RtcClient(
     private val videoCapturer by lazy { getLocalVideoCapturer() }
     private val videoSource by lazy { peerConnectionFactory.createVideoSource(false) }
     private val audioSource by lazy { peerConnectionFactory.createAudioSource(MediaConstraints()) }
-    private val peerConnection by lazy { peerConnectionFactory.createPeerConnection(iceServer, observer) }
+    private val peerConnection by lazy { buildPeerConnection(observer) }
     private val surfaceTextureHelper by lazy { SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext) }
 
     init {
@@ -70,6 +76,14 @@ class RtcClient(
             })
             .createPeerConnectionFactory()
     }
+
+    private fun buildPeerConnection(observer: PeerConnection.Observer) =
+        peerConnectionFactory.createPeerConnection(
+            PeerConnection.RTCConfiguration(iceServer).apply {
+                enableCpuOveruseDetection = false
+            },
+            observer
+        )
 
     /**
      * Camera
@@ -176,6 +190,23 @@ class RtcClient(
      */
 
     private fun initVideo(videoOutput: SurfaceViewRenderer) {
+        cameraManager.cameraIdList.forEach { camera ->
+            Log.v(TAG, "Getting characteristics for camera $camera ...")
+            val cameraCharacteristics = cameraManager.getCameraCharacteristics(camera)
+            val streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            /*streamConfigurationMap?.outputFormats?.forEach { format ->
+                Log.d(TAG, "Format: $format")
+                streamConfigurationMap.getOutputSizes(format).forEach { size ->
+                    val ratio = reduceRatio(size.width, size.height)
+                    Log.d(TAG, "Supported size: ${size.width}x${size.height} (${ratio.width}, ${ratio.height})")
+                }
+            }*/
+            camera2Enumerator.getSupportedFormats(camera)?.forEach {
+                val ratio = reduceRatio(it.width, it.height)
+                Log.v(TAG, "Format: ${it.imageFormat} Size: ${it.width}x${it.height} (${ratio.width}x${ratio.height}) FPS: ${it.framerate}")
+            }
+        }
+
         videoCapturer.initialize(
             surfaceTextureHelper,
             videoOutput.context,
@@ -189,11 +220,11 @@ class RtcClient(
     }
 
     private fun startVideo() {
-        videoCapturer.startCapture(1280, 720, 30, isFlashEnabled)
+        videoCapturer.startCapture(resolution.width, resolution.height, framerate, isFlashEnabled)
     }
 
     private fun restartVideo() {
-        videoCapturer.changeCaptureFormat(1280, 720, 30, isFlashEnabled)
+        videoCapturer.changeCaptureFormat(resolution.width, resolution.height, framerate, isFlashEnabled)
     }
 
     /*private fun stopVideo() {

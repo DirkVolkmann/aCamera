@@ -7,6 +7,7 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.format.Formatter
 import android.text.style.BulletSpan
+import java.util.*
 
 fun buildBulletList(array: Array<out String>, gapWidth: Int = BulletSpan.STANDARD_GAP_WIDTH): CharSequence {
     val sStringBuilder = SpannableStringBuilder()
@@ -24,4 +25,46 @@ fun buildBulletList(array: Array<out String>, gapWidth: Int = BulletSpan.STANDAR
 fun getDeviceIp(context: Context): String {
     val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
     return Formatter.formatIpAddress(wifiManager.connectionInfo.ipAddress)
+}
+
+data class Ratio(val width: Int, val height: Int)
+
+fun reduceRatio(width: Int, height: Int) : Ratio {
+    // take care of the simple case
+    if (width == height) return Ratio(1, 1);
+
+    // make sure numerator is always the larger number
+    var isVertical = (width < height)
+
+    val divisor = greatestCommonDivisor(width, height)
+
+    var left: Int
+    var right: Int
+    if (!isVertical) {
+        left = width / divisor;
+        right = height / divisor;
+    } else {
+        left = height / divisor;
+        right = width / divisor;
+    }
+
+    // handle special cases
+    if (8 == left && 5 == right) {
+        left = 16;
+        right = 10;
+    }
+
+    return Ratio(left, right)
+}
+
+fun greatestCommonDivisor(val1: Int, val2: Int): Int {
+    var n1 = val1
+    var n2 = val2
+    while (n1 != n2) {
+        if (n1 > n2)
+            n1 -= n2
+        else
+            n2 -= n1
+    }
+    return n1
 }
