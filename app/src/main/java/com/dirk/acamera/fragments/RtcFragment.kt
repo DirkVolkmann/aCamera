@@ -43,6 +43,7 @@ class RtcFragment : Fragment() {
     private var isAudioEnabled = true
     private var hasVideoPermission = false
     private var hasAudioPermission = false
+    private var isFlashEnabled = false
 
     // Networking
     private lateinit var signalingClient: SignalingClient
@@ -179,6 +180,7 @@ class RtcFragment : Fragment() {
          */
         controls.findViewById<ImageButton>(R.id.button_video).let {
             it.isClickable = false
+            buttonSwitch.isClickable = false
 
             if (hasVideoPermission) {
 
@@ -226,10 +228,11 @@ class RtcFragment : Fragment() {
 
                 // Set listener if permission is denied
                 it.setOnClickListener {
-                    Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, getString(R.string.permission_camera_denied), Toast.LENGTH_SHORT).show()
                 }
-                // No new listener for switch button because it won't be clickable
-                buttonSwitch.isClickable = false
+                buttonSwitch.setOnClickListener {
+                    Toast.makeText(context, getString(R.string.permission_camera_denied), Toast.LENGTH_SHORT).show()
+                }
 
                 // Button style if no permission
                 it.setImageResource(R.drawable.ic_videocam_off_black_24dp)
@@ -240,12 +243,13 @@ class RtcFragment : Fragment() {
 
                 // Show local view message
                 container.findViewById<TextView>(R.id.local_view_message).let { textView ->
-                    textView.text = getString(R.string.camera_permission_denied_info)
+                    textView.text = getString(R.string.permission_camera_denied_info)
                     textView.isGone = false
                 }
             }
 
             it.isClickable = true
+            buttonSwitch.isClickable = true
         }
 
         /**
@@ -290,11 +294,64 @@ class RtcFragment : Fragment() {
 
                 // Set listener if permission is denied
                 it.setOnClickListener {
-                    Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, getString(R.string.permission_audio_denied), Toast.LENGTH_SHORT).show()
                 }
 
                 // Button style if no permission
                 it.setImageResource(R.drawable.ic_mic_off_black_24dp)
+                it.backgroundTintList = colorDeniedBackground
+                it.imageTintList = colorDeniedIcon
+            }
+
+            it.isClickable = true
+        }
+
+        /**
+         * Update flash button
+         */
+        controls.findViewById<ImageButton>(R.id.button_flash).let {
+            it.isClickable = false
+
+            if (hasVideoPermission) {
+
+                /**
+                 * Permission granted
+                 */
+
+                // Set listener
+                it.setOnClickListener {
+                    if (isFlashEnabled) {
+                        disableFlashlight()
+                    } else {
+                        enableFlashlight()
+                    }
+                }
+
+                // Set button style
+                if (isFlashEnabled) {
+                    // Button is enabled
+                    it.setImageResource(R.drawable.ic_flash_on_black_24dp)
+                    it.backgroundTintList = colorEnabledBackground
+                    it.imageTintList = colorEnabledIcon
+                } else {
+                    // Button is disabled
+                    it.setImageResource(R.drawable.ic_flash_off_black_24dp)
+                    it.backgroundTintList = colorDisabledBackground
+                    it.imageTintList = colorDisabledIcon
+                }
+            } else {
+
+                /**
+                 * Permission denied
+                 */
+
+                // Set listener if permission is denied
+                it.setOnClickListener {
+                    Toast.makeText(context, getString(R.string.permission_camera_denied), Toast.LENGTH_SHORT).show()
+                }
+
+                // Button style if no permission
+                it.setImageResource(R.drawable.ic_flash_off_black_24dp)
                 it.backgroundTintList = colorDeniedBackground
                 it.imageTintList = colorDeniedIcon
             }
@@ -525,6 +582,22 @@ class RtcFragment : Fragment() {
         rtcClient.disableAudio()
         isAudioEnabled = false
         Log.d(TAG, "Disabling audio done")
+        updateUi()
+    }
+
+    private fun enableFlashlight() {
+        Log.d(TAG, "Enabling flash...")
+        rtcClient.setFlashlight(true)
+        isFlashEnabled = true
+        Log.d(TAG, "Enabling flash done")
+        updateUi()
+    }
+
+    private fun disableFlashlight() {
+        Log.d(TAG, "Disabling flash...")
+        rtcClient.setFlashlight(false)
+        isFlashEnabled = false
+        Log.d(TAG, "Disabling flash done")
         updateUi()
     }
 }

@@ -1,6 +1,8 @@
 package com.dirk.acamera.rtc
 
 import android.app.Application
+import android.content.Context
+import android.hardware.camera2.CameraManager
 import android.util.Log
 import org.webrtc.*
 
@@ -30,12 +32,14 @@ class RtcClient(
     private var isAudioInitialized = false
     private var isStreamInitialized = false
     private var cameraUsed = Camera.NONE
+    private var isFlashEnabled = false
 
     private val rootEglBase: EglBase = EglBase.create()
     private val iceServer = listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
     private val mediaStream by lazy { peerConnectionFactory.createLocalMediaStream(STREAM_ID) }
-    private val camera2Enumerator by lazy { Camera2Enumerator(context) }
+    private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    private val camera2Enumerator by lazy { FlashCamera2Enumerator(context, cameraManager) }
     private val cameraSwitchHandler by lazy { createCameraSwitchHandler() }
     private val videoCapturer by lazy { getLocalVideoCapturer() }
     private val videoSource by lazy { peerConnectionFactory.createVideoSource(false) }
@@ -72,13 +76,14 @@ class RtcClient(
      */
 
     private fun getLocalVideoCapturer() = camera2Enumerator.run {
+        val fc2c: FlashCameraVideoCapturer.CameraEventsHandler? = null
         getFrontCamera()?.let {
-            createCapturer(it, null).also {
+            createCapturer(it, fc2c).also {
                 cameraUsed = Camera.FRONT
                 surfaceViewRenderer.setMirror(true)
             }
         } ?: getBackCamera()?.let {
-            createCapturer(it, null).also {
+            createCapturer(it, fc2c).also {
                 cameraUsed = Camera.BACK
                 surfaceViewRenderer.setMirror(false)
             }
@@ -108,7 +113,7 @@ class RtcClient(
         videoCapturer.switchCamera(cameraSwitchHandler)
     }
 
-    private fun createCameraSwitchHandler() = object : CameraVideoCapturer.CameraSwitchHandler {
+    private fun createCameraSwitchHandler() = object : FlashCameraVideoCapturer.CameraSwitchHandler {
         override fun onCameraSwitchDone(p0: Boolean) {
             if (cameraUsed == Camera.FRONT) {
                 cameraUsed = Camera.BACK
@@ -120,8 +125,13 @@ class RtcClient(
         }
 
         override fun onCameraSwitchError(p0: String?) {
-            Log.e(TAG, "Could not switch camera: $p0", )
+            Log.e(TAG, "Could not switch camera: $p0")
         }
+    }
+
+    fun setFlashlight(enabled: Boolean) {
+        isFlashEnabled = enabled
+        restartVideo()
     }
 
     /**
@@ -179,8 +189,16 @@ class RtcClient(
     }
 
     private fun startVideo() {
-        videoCapturer.startCapture(1280, 720, 30)
+        videoCapturer.startCapture(1280, 720, 30, isFlashEnabled)
     }
+
+    private fun restartVideo() {
+        videoCapturer.changeCaptureFormat(1280, 720, 30, isFlashEnabled)
+    }
+
+    /*private fun stopVideo() {
+        videoCapturer.stopCapture()
+    }*/
 
     fun enableVideo(videoOutput: SurfaceViewRenderer) {
         if (videoTrack == null) {
