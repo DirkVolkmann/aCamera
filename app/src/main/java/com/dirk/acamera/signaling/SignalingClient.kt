@@ -9,10 +9,10 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.features.json.GsonSerializer
 import io.ktor.client.features.json.JsonFeature
-import io.ktor.client.features.websocket.WebSockets
-import io.ktor.client.features.websocket.ws
+import io.ktor.client.features.websocket.*
 import io.ktor.http.cio.websocket.Frame
 import io.ktor.http.cio.websocket.readText
+import io.ktor.network.tls.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import org.webrtc.IceCandidate
@@ -29,11 +29,6 @@ class SignalingClient(
 
     // TODO: Connection parameters (port) should be read from settings
     companion object {
-        // Connection parameters
-        const val SOCKET_HOST = "127.0.0.1"
-        const val SOCKET_PORT_DEFAULT = SignalingServer.SOCKET_PORT_DEFAULT
-        const val SOCKET_PATH = SignalingServer.SOCKET_PATH
-
         // JSON strings
         private const val JSON_TYPE = "type"
         private const val JSON_SDP = "sdp"
@@ -59,12 +54,20 @@ class SignalingClient(
     private val gson = Gson()
 
     var retriesDone = 0
-    val retriesTotal = 10
+    val retriesTotal = 3
 
     private val client = HttpClient(CIO) {
         install(WebSockets)
         install(JsonFeature) {
             serializer = GsonSerializer()
+        }
+        engine {
+            https {
+                serverName = "127.0.0.1"
+                cipherSuites = CIOCipherSuites.SupportedSuites
+                addKeyStore(SignalingServer.KEYSTORE, SignalingServer.KEYSTORE_PASS.toCharArray() as CharArray?, SignalingServer.CERT_ALIAS)
+                trustManager = SignalingServer.x509TrustManager
+            }
         }
     }
 
@@ -72,7 +75,12 @@ class SignalingClient(
     private val sendChannel = ConflatedBroadcastChannel<String>()
 
     @ObsoleteCoroutinesApi
-    fun connect(ip: String = SOCKET_HOST, port: Int = SOCKET_PORT_DEFAULT, path: String = SOCKET_PATH, waitMillis: Long = 0) = launch {
+    fun connect(
+        host: String = "127.0.0.1",
+        port: Int = 8080,
+        path: String = "",
+        waitMillis: Long = 0
+    ) = launch {
         state = State.CONNECTING
 
         // Web socket could not be ready yet
@@ -80,13 +88,13 @@ class SignalingClient(
         delay(waitMillis)
 
         retriesDone++
-        Log.d(TAG, "Connecting to socket '$ip:$port$path' try $retriesDone of $retriesTotal")
+        Log.d(TAG, "Connecting to socket '$host:$port$path' try $retriesDone of $retriesTotal")
 
         try {
-            client.ws(
-                host = SOCKET_HOST,
+            client.wss(
+                host = host,
                 port = port,
-                path = SOCKET_PATH
+                path = path
             ) {
                 // At this point the connection is established
                 state = State.CONNECTION_ESTABLISHED
@@ -174,7 +182,7 @@ class SignalingClient(
         } catch (error: ConnectException) {
             state = State.CONNECTION_FAILED
             Log.d(TAG, "Failed to connect at try $retriesDone of $retriesTotal")
-            Log.v(TAG, "Connection error: ", error)
+            Log.w(TAG, "Connection error: ", error)
             listener.onConnectionFailed()
         }
     }

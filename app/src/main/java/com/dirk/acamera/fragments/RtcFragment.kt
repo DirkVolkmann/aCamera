@@ -55,7 +55,7 @@ class RtcFragment : Fragment() {
     private lateinit var rtcClient: RtcClient
 
     // Other
-    private var port: Int = 8080 // TODO: Read from settings
+    private var port: Int = SignalingServer.SERVER_PORT_DEFAULT // TODO: Read from settings
     private lateinit var deviceIp: String
     private lateinit var streamUrl: String
     private lateinit var howToConnectList: SpannableStringBuilder
@@ -491,11 +491,17 @@ class RtcFragment : Fragment() {
 
     private fun createSignalingServerListener() = object : SignalingServerListener {
         override fun onServerRunning() {
-            signalingClient.connect(port = port)
+            signalingClient.connect(
+                port = port,
+                path = SignalingServer.SOCKET_PATH,
+                waitMillis = 0
+            )
         }
 
         override fun onServerFailed() {
-
+            lifecycleScope.launchWhenStarted {
+                showStatusBox(getString(R.string.status_server_failed))
+            }
         }
 
         override fun onConnectionEstablished() {
@@ -540,8 +546,13 @@ class RtcFragment : Fragment() {
 
         override fun onConnectionFailed() {
             if (signalingClient.retriesDone < signalingClient.retriesTotal) {
-                signalingClient.connect(port = port, waitMillis = 1000)
+                signalingClient.connect(
+                    port = port,
+                    path = SignalingServer.SOCKET_PATH,
+                    waitMillis = 1000
+                )
             } else {
+                Log.e(TAG, "Connection finally failed after ${signalingClient.retriesTotal} retries")
                 lifecycleScope.launchWhenStarted {
                     showStatusBox(getString(R.string.status_failed), showProgressBar = false)
                 }

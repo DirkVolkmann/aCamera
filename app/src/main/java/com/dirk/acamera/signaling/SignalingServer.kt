@@ -2,23 +2,22 @@ package com.dirk.acamera.signaling
 
 import android.content.Context
 import android.util.Log
+import com.dirk.acamera.utils.buildKeyStore
+import com.dirk.acamera.utils.saveToFile
 import io.ktor.application.*
 import io.ktor.http.cio.websocket.*
 import io.ktor.http.content.*
-import io.ktor.network.tls.certificates.*
 import io.ktor.network.tls.extensions.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.*
-import java.io.File
-import java.io.FileOutputStream
+import java.io.*
+import java.security.*
 import java.time.Duration
 import java.util.*
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
+import javax.net.ssl.*
 import kotlin.coroutines.CoroutineContext
 
 private const val TAG = "aCamera SignalingServer"
@@ -26,30 +25,46 @@ private const val TAG = "aCamera SignalingServer"
 class SignalingServer(
     private val listener: SignalingServerListener,
     private val context: Context,
-    port: Int = SOCKET_PORT_DEFAULT
+    private val port: Int = SERVER_PORT_DEFAULT
 ) : CoroutineScope {
 
     companion object {
         private const val ASSETS_FOLDER = "web"
 
+        const val SERVER_PORT_DEFAULT = 8443
         private const val SERVER_STOP_GRACE_MILLIS = 5000L
         private const val SERVER_STOP_TIMEOUT_MILLIS = 10000L
 
-        private const val SOCKET_PATH = "/socket"
-        const val SOCKET_PORT_DEFAULT = 8080
         const val SOCKET_PATH = "/socket"
         private const val SOCKET_PING_PERIOD_SECONDS = 60L
         private const val SOCKET_TIMEOUT_SECONDS = 15L
         private const val SOCKET_MAX_FRAME_SIZE = Long.MAX_VALUE
         private const val SOCKET_MASKING = false
 
+        const val CERT_ALIAS = "aCamera"
         private const val CERT_PASS = "android"
-        private const val CERT_ALIAS = "sha1rsa"
-        private const val CERT_KEY_SIZE = 1024
-        private val CERT_HASH_ALGORITHM = HashAlgorithm.SHA1
-        private val CERT_SIGNATURE_ALGORITHM = SignatureAlgorithm.RSA
-        private const val KEYSTORE_FILE = "build/http.jks"
-        private const val KEYSTORE_PASS = "android"
+        private const val CERT_KEY_SIZE = 256
+        private const val CERT_DAYS_VALID = 365*25L
+        private val CERT_HASH_ALGORITHM = HashAlgorithm.SHA256
+        private val CERT_SIGNATURE_ALGORITHM = SignatureAlgorithm.ECDSA
+        private const val KEYSTORE_FILE_NAME = "ssl.keystore"
+        const val KEYSTORE_PASS = "android"
+
+        //val ks = io.ktor.network.tls.certificates.buildKeyStore {  }
+
+        // TODO: Don't create a new certificate every time the app is restarted
+        val KEYSTORE = buildKeyStore {
+            certificate(CERT_ALIAS) {
+                hash = CERT_HASH_ALGORITHM
+                sign = CERT_SIGNATURE_ALGORITHM
+                keySizeInBits = CERT_KEY_SIZE
+                password = CERT_PASS
+                daysValid = CERT_DAYS_VALID
+            }
+        }
+
+        lateinit var sslContext: SSLContext
+        lateinit var x509TrustManager: X509TrustManager
     }
 
     // TODO: Try different ports in case one is already in use
@@ -61,62 +76,45 @@ class SignalingServer(
 
     var state = State.INITIALIZING
     var connections = 0
+
     private var sessions = Collections.synchronizedMap(mutableMapOf<String, WebSocketServerSession>())
     private var resourcesReady = false
 
     private val job = Job()
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO + job
-
     private val server: NettyApplicationEngine
 
     init {
+        Log.d(TAG, "Creating server instance...")
         server = createServer()
-        start()
+        Log.d(TAG, "Creating server instance done")
     }
 
     private fun createServer(): NettyApplicationEngine {
         if (!resourcesReady) copyWebResources()
 
-        val keyStoreFile = File(KEYSTORE_FILE).apply {
-            parentFile?.mkdirs()
-        }
-        Log.d("aCamera CertificateGenerator", "Hello1")
-        if (!keyStoreFile.exists()) {
-            generateCertificate(
-                keyStoreFile,
+        Log.d(TAG, "Server keystore type: ${KEYSTORE.type}")
+        Log.d(TAG, "Saving certificate to file '$KEYSTORE_FILE_NAME'")
+        val keyStoreFile = File(context.filesDir, KEYSTORE_FILE_NAME)
+        KEYSTORE.saveToFile(keyStoreFile, KEYSTORE_PASS)
+        Log.d(TAG, "Saving certificate done")
 
-            ) // Generates the certificate
-        }
-        Log.d("aCamera CertificateGenerator", "Hello2")
-
-        val keyStore = buildKeyStore {
-            certificate(CERT_ALIAS) {
-                hash = CERT_HASH_ALGORITHM
-                sign = CERT_SIGNATURE_ALGORITHM
-                keySizeInBits = CERT_KEY_SIZE
-                password = CERT_PASS
-            }
-        }
-        Log.d(TAG, "New keystore type: ${keyStore.type}")
-        keyStore.saveToFile(keyStoreFile, KEYSTORE_PASS)
-
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).also {
-            it.init(keyStore)
-        }
-        val sslContext = SSLContext.getInstance("TLS").also {
-            it.init(null, tmf.trustManagers, null)
-        }
-        val x509TrustManager = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
+        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        tmf.init(KEYSTORE)
+        sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, tmf.trustManagers, null)
+        x509TrustManager = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
 
         return embeddedServer(Netty, applicationEngineEnvironment {
             sslConnector(
-                keyStore,
-                "sha1rsa",
-                { "android".toCharArray() },
-                { "android".toCharArray() }
+                KEYSTORE,
+                CERT_ALIAS,
+                { KEYSTORE_PASS.toCharArray() },
+                { CERT_PASS.toCharArray() }
             ) {
-                port = SERVER_PORT
+                port = this@SignalingServer.port
+                //keyStorePath = keyStore.asFile.absoluteFile
                 keyStorePath = keyStoreFile.absoluteFile
             }
 
@@ -157,18 +155,19 @@ class SignalingServer(
                     default(File(context.filesDir, "index.html"))
                 }
             }
-        }
+        })
     }
 
     fun start() = launch {
         Log.d(TAG, "Running server thread...")
         try {
             server.start(wait = false)
+            // TODO: This does not tell if server is actually running
             Log.d(TAG, "Running server thread success")
             state = State.RUNNING
             listener.onServerRunning()
         } catch (error: Exception) {
-            Log.d(TAG, "Running server thread failed")
+            Log.e(TAG, "Server thread failed", error)
             state = State.FAILED
             listener.onServerFailed()
         }
@@ -216,3 +215,5 @@ class SignalingServer(
         job.complete()
     }
 }
+
+
