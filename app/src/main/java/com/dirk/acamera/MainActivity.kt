@@ -15,18 +15,6 @@ import com.dirk.acamera.fragments.Permission
 
 private const val TAG = "aCamera MainActivity"
 
-/**
- * Permission variables
- */
-
-// Self defined request code
-const val PERMISSIONS_REQUEST_CODE = 10
-// Camera permission string
-const val PERMISSION_CAMERA = Manifest.permission.CAMERA
-// Audio permission string
-const val PERMISSION_AUDIO = Manifest.permission.RECORD_AUDIO
-// List of all required permissions
-val PERMISSIONS_REQUIRED = listOf(PERMISSION_CAMERA, PERMISSION_AUDIO)
 // List of granted permissions since last request
 // Used to check if request have changed while app was running in the background
 val permissionsGranted = mutableListOf<Permission>()

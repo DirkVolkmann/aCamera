@@ -13,6 +13,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.Navigation
 import com.dirk.acamera.*
+import com.dirk.acamera.fragments.PermissionFragment.Companion.PERMISSIONS_REQUIRED
+import com.dirk.acamera.fragments.PermissionFragment.Companion.PERMISSION_AUDIO
+import com.dirk.acamera.fragments.PermissionFragment.Companion.PERMISSION_CAMERA
 import com.dirk.acamera.rtc.PeerConnectionObserver
 import com.dirk.acamera.rtc.RtcClient
 import com.dirk.acamera.rtc.SimpleSdpObserver
@@ -384,7 +387,7 @@ class RtcFragment : Fragment() {
     private fun checkPermissions() {
         // Ask for any permissions if necessary
         if (PermissionFragment.checkPermissionsChanged(requireContext()) ||
-            PermissionFragment.checkShowDialog(requireActivity(), PERMISSIONS_REQUIRED.toTypedArray())) {
+            PermissionFragment.checkShowDialog(requireActivity(), PERMISSIONS_REQUIRED)) {
             Log.d(TAG, "Permissions changed or show dialog")
             if (!PermissionFragment.checkAllPermissionsGranted(requireContext())) {
                 Log.d(TAG, "Checking permissions...")
