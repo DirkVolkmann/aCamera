@@ -22,8 +22,14 @@
     <string name="str_deny">Deny</string>
 
     <!-- Image content descriptions -->
-    <string name="button_video_alt">Switch Camera</string>
-    <string name="button_audio_alt">Switch Microphone</string>
+    <string name="button_video_alt">Toggle camera on/off</string>
+    <string name="button_audio_alt">Toggle microphone on/off</string>
+    <string name="button_switch_alt">Switch between cameras</string>
+    <string name="button_flash_alt">Toggle flashlight on/off</string>
+    <string name="button_settings_alt">Open settings</string>
+
+    <!-- Settings -->
+    <string name="settings_not_yet_implemented">This button will open the settings at some point…</string>
 
 
     <!-- TODO: Remove or change this placeholder text -->

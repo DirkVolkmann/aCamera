@@ -58,7 +58,7 @@ class RtcFragment : Fragment() {
     private lateinit var howToConnectList: SpannableStringBuilder
 
     /**
-     * Fragment Lifecycle
+     * Fragment LifeCycle
      */
 
     override fun onCreateView(
@@ -166,6 +166,17 @@ class RtcFragment : Fragment() {
 
         // Inflate a new view containing all the buttons
         val controls = View.inflate(requireContext(), R.layout.button_container, container)
+
+        // Settings button
+        controls.findViewById<ImageButton>(R.id.button_settings).let {
+            it.setOnClickListener {
+                /*Log.d(TAG, "Navigating to settings fragment")
+                Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
+                    RtcFragmentDirections.actionRtcToSettings()
+                )*/
+                Toast.makeText(context, getString(R.string.settings_not_yet_implemented), Toast.LENGTH_SHORT).show()
+            }
+        }
 
         // Colors for buttons
         val colorEnabledBackground = requireContext().getColorStateList(R.color.design_default_color_secondary)
