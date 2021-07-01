@@ -5,6 +5,14 @@ plugins {
 }
 
 android {
+    signingConfigs {
+        debug {
+            storeFile file(debug_store_file)
+            storePassword debug_store_pass
+            keyAlias debug_key_alias
+            keyPassword debug_key_pass
+        }
+    }
     compileSdkVersion 30
     buildToolsVersion "30.0.3"
 
@@ -75,6 +83,7 @@ dependencies {
     implementation "io.ktor:ktor-websockets:$ktor_version"
     implementation "io.ktor:ktor-gson:$ktor_version"
     implementation "io.ktor:ktor-html-builder:$ktor_version"
+    implementation "io.ktor:ktor-network-tls-certificates:$ktor_version"
 
     // Testing
     testImplementation 'junit:junit:4.13.2'

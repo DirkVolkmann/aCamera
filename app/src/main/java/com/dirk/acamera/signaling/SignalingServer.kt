@@ -5,6 +5,8 @@ import android.util.Log
 import io.ktor.application.*
 import io.ktor.http.cio.websocket.*
 import io.ktor.http.content.*
+import io.ktor.network.tls.certificates.*
+import io.ktor.network.tls.extensions.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
@@ -14,6 +16,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.time.Duration
 import java.util.*
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 import kotlin.coroutines.CoroutineContext
 
 private const val TAG = "aCamera SignalingServer"
@@ -27,6 +32,10 @@ class SignalingServer(
     companion object {
         private const val ASSETS_FOLDER = "web"
 
+        private const val SERVER_STOP_GRACE_MILLIS = 5000L
+        private const val SERVER_STOP_TIMEOUT_MILLIS = 10000L
+
+        private const val SOCKET_PATH = "/socket"
         const val SOCKET_PORT_DEFAULT = 8080
         const val SOCKET_PATH = "/socket"
         private const val SOCKET_PING_PERIOD_SECONDS = 60L
@@ -34,8 +43,13 @@ class SignalingServer(
         private const val SOCKET_MAX_FRAME_SIZE = Long.MAX_VALUE
         private const val SOCKET_MASKING = false
 
-        private const val SERVER_STOP_GRACE_MILLIS = 5000L
-        private const val SERVER_STOP_TIMEOUT_MILLIS = 10000L
+        private const val CERT_PASS = "android"
+        private const val CERT_ALIAS = "sha1rsa"
+        private const val CERT_KEY_SIZE = 1024
+        private val CERT_HASH_ALGORITHM = HashAlgorithm.SHA1
+        private val CERT_SIGNATURE_ALGORITHM = SignatureAlgorithm.RSA
+        private const val KEYSTORE_FILE = "build/http.jks"
+        private const val KEYSTORE_PASS = "android"
     }
 
     // TODO: Try different ports in case one is already in use
@@ -54,43 +68,95 @@ class SignalingServer(
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO + job
 
-    private val server = embeddedServer(Netty, port) {
+    private val server: NettyApplicationEngine
+
+    init {
+        server = createServer()
+        start()
+    }
+
+    private fun createServer(): NettyApplicationEngine {
         if (!resourcesReady) copyWebResources()
 
-        // Web socket is used for local and remote signaling clients
-        install(WebSockets) {
-            pingPeriod = Duration.ofSeconds(SOCKET_PING_PERIOD_SECONDS)
-            timeout = Duration.ofSeconds(SOCKET_TIMEOUT_SECONDS)
-            maxFrameSize = SOCKET_MAX_FRAME_SIZE
-            masking = SOCKET_MASKING
+        val keyStoreFile = File(KEYSTORE_FILE).apply {
+            parentFile?.mkdirs()
         }
+        Log.d("aCamera CertificateGenerator", "Hello1")
+        if (!keyStoreFile.exists()) {
+            generateCertificate(
+                keyStoreFile,
 
-        // Static content can be accessed by the remote client
-        routing {
-            webSocket(path = SOCKET_PATH) {
-                // Add session
-                val id = UUID.randomUUID().toString()
-                addSession(this, id)
-                try {
-                    for (data in incoming) {
-                        if (data is Frame.Text) {
-                            val clients = sessions.filter { it.key != id }
-                            val text = data.readText()
-                            clients.forEach {
-                                Log.v(TAG, "Sending to: ${it.key}")
-                                Log.v(TAG, "Sending: $text")
-                                it.value.send(text)
+            ) // Generates the certificate
+        }
+        Log.d("aCamera CertificateGenerator", "Hello2")
+
+        val keyStore = buildKeyStore {
+            certificate(CERT_ALIAS) {
+                hash = CERT_HASH_ALGORITHM
+                sign = CERT_SIGNATURE_ALGORITHM
+                keySizeInBits = CERT_KEY_SIZE
+                password = CERT_PASS
+            }
+        }
+        Log.d(TAG, "New keystore type: ${keyStore.type}")
+        keyStore.saveToFile(keyStoreFile, KEYSTORE_PASS)
+
+        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).also {
+            it.init(keyStore)
+        }
+        val sslContext = SSLContext.getInstance("TLS").also {
+            it.init(null, tmf.trustManagers, null)
+        }
+        val x509TrustManager = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
+
+        return embeddedServer(Netty, applicationEngineEnvironment {
+            sslConnector(
+                keyStore,
+                "sha1rsa",
+                { "android".toCharArray() },
+                { "android".toCharArray() }
+            ) {
+                port = SERVER_PORT
+                keyStorePath = keyStoreFile.absoluteFile
+            }
+
+            module {
+                // Web socket is used for local and remote signaling clients
+                install(WebSockets) {
+                    pingPeriod = Duration.ofSeconds(SOCKET_PING_PERIOD_SECONDS)
+                    timeout = Duration.ofSeconds(SOCKET_TIMEOUT_SECONDS)
+                    maxFrameSize = SOCKET_MAX_FRAME_SIZE
+                    masking = SOCKET_MASKING
+                }
+
+                // Static content can be accessed by the remote client
+                routing {
+                    webSocket(path = SOCKET_PATH) {
+                        // Add session
+                        val id = UUID.randomUUID().toString()
+                        addSession(this, id)
+                        try {
+                            for (data in incoming) {
+                                if (data is Frame.Text) {
+                                    val clients = sessions.filter { it.key != id }
+                                    val text = data.readText()
+                                    clients.forEach {
+                                        Log.v(TAG, "Sending to: ${it.key}")
+                                        Log.v(TAG, "Sending: $text")
+                                        it.value.send(text)
+                                    }
+                                }
                             }
+                        } finally {
+                            removeSession(id)
                         }
                     }
-                } finally {
-                    removeSession(id)
+                    static("") {
+                        files(context.filesDir)
+                    }
+                    default(File(context.filesDir, "index.html"))
                 }
             }
-            static("") {
-                files(context.filesDir)
-            }
-            default(File(context.filesDir, "index.html"))
         }
     }
 
