@@ -7,7 +7,6 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.format.Formatter
 import android.text.style.BulletSpan
-import java.util.*
 
 fun buildBulletList(array: Array<out String>, gapWidth: Int = BulletSpan.STANDARD_GAP_WIDTH): CharSequence {
     val sStringBuilder = SpannableStringBuilder()

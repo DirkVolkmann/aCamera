@@ -54,7 +54,9 @@ class RtcClient(
     private val surfaceTextureHelper by lazy { SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext) }
 
     init {
+        Log.d(TAG, "Creating RTC Client...")
         initPeerConnectionFactory(context)
+        Log.d(TAG, "Creating RTC Client done")
     }
 
     private fun initPeerConnectionFactory(context: Application) {
@@ -91,24 +93,26 @@ class RtcClient(
 
     private fun getLocalVideoCapturer() = camera2Enumerator.run {
         val fc2c: FlashCameraVideoCapturer.CameraEventsHandler? = null
-        getFrontCamera()?.let {
-            createCapturer(it, fc2c).also {
-                cameraUsed = Camera.FRONT
-                surfaceViewRenderer.setMirror(true)
-            }
-        } ?: getBackCamera()?.let {
+        getBackCamera()?.let {
             createCapturer(it, fc2c).also {
                 cameraUsed = Camera.BACK
                 surfaceViewRenderer.setMirror(false)
+            }
+        } ?: getFrontCamera()?.let {
+            createCapturer(it, fc2c).also {
+                cameraUsed = Camera.FRONT
+                surfaceViewRenderer.setMirror(true)
             }
         } ?: throw IllegalStateException()
     }
 
     fun initSurfaceView(view: SurfaceViewRenderer) = view.run {
+        Log.d(TAG, "Initializing surface view...")
         setEnableHardwareScaler(true)
         init(rootEglBase.eglBaseContext, null)
     }.also {
         surfaceViewRenderer = view
+        Log.d(TAG, "Initializing surface view done")
     }
 
     private fun getFrontCamera() = camera2Enumerator.run {
@@ -227,9 +231,9 @@ class RtcClient(
         videoCapturer.changeCaptureFormat(resolution.width, resolution.height, framerate, isFlashEnabled)
     }
 
-    /*private fun stopVideo() {
+    private fun stopVideo() {
         videoCapturer.stopCapture()
-    }*/
+    }
 
     fun enableVideo(videoOutput: SurfaceViewRenderer) {
         if (videoTrack == null) {
@@ -337,6 +341,7 @@ class RtcClient(
     }
 
     fun destroy() {
+        stopVideo()
         peerConnection?.close()
     }
 }
