@@ -24,8 +24,7 @@ private const val TAG = "aCamera SignalingClient"
 
 @ObsoleteCoroutinesApi
 class SignalingClient(
-    private val listener: SignalingClientListener,
-    val port: Int = SOCKET_PORT_DEFAULT
+    private val listener: SignalingClientListener
 ) : CoroutineScope {
 
     // TODO: Connection parameters (port) should be read from settings
@@ -72,12 +71,8 @@ class SignalingClient(
     // Use Broadcast Channel to send data to clients
     private val sendChannel = ConflatedBroadcastChannel<String>()
 
-    init {
-        connect()
-    }
-
     @ObsoleteCoroutinesApi
-    fun connect(waitMillis: Long = 0) = launch {
+    fun connect(ip: String = SOCKET_HOST, port: Int = SOCKET_PORT_DEFAULT, path: String = SOCKET_PATH, waitMillis: Long = 0) = launch {
         state = State.CONNECTING
 
         // Web socket could not be ready yet
@@ -85,7 +80,7 @@ class SignalingClient(
         delay(waitMillis)
 
         retriesDone++
-        Log.d(TAG, "Connecting to socket '$SOCKET_HOST:$port$SOCKET_PATH' try $retriesDone of $retriesTotal")
+        Log.d(TAG, "Connecting to socket '$ip:$port$path' try $retriesDone of $retriesTotal")
 
         try {
             client.ws(
@@ -96,7 +91,7 @@ class SignalingClient(
                 // At this point the connection is established
                 state = State.CONNECTION_ESTABLISHED
                 Log.d(TAG, "Connection to socket established")
-                launch(Dispatchers.Main) { listener.onConnectionEstablished() }
+                listener.onConnectionEstablished()
                 val sendData = sendChannel.openSubscription()
 
                 // React to incoming and outgoing frames
@@ -162,7 +157,7 @@ class SignalingClient(
                                             )
                                             if (sessionDescription.type == SessionDescription.Type.ANSWER) {
                                                 Log.d(TAG, "Received message of type '" + SessionDescription.Type.ANSWER + "'")
-                                                launch(Dispatchers.Main) { listener.onAnswerReceived(sessionDescription) }
+                                                listener.onAnswerReceived(sessionDescription)
                                             }
                                         }
                                     }
@@ -173,14 +168,14 @@ class SignalingClient(
                 } catch (error: Throwable) {
                     state = State.CONNECTION_ABORTED
                     Log.e(TAG, "Something happened that upset me :'(", error)
-                    launch(Dispatchers.Main) { listener.onConnectionAborted() }
+                    listener.onConnectionAborted()
                 }
             }
         } catch (error: ConnectException) {
             state = State.CONNECTION_FAILED
             Log.d(TAG, "Failed to connect at try $retriesDone of $retriesTotal")
             Log.v(TAG, "Connection error: ", error)
-            launch(Dispatchers.Main) { listener.onConnectionFailed() }
+            listener.onConnectionFailed()
         }
     }
 

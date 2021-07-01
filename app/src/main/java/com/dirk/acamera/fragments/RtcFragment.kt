@@ -13,6 +13,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.Navigation
 import com.dirk.acamera.*
+import com.dirk.acamera.fragments.PermissionFragment.Companion.PERMISSIONS_REQUIRED
+import com.dirk.acamera.fragments.PermissionFragment.Companion.PERMISSION_AUDIO
+import com.dirk.acamera.fragments.PermissionFragment.Companion.PERMISSION_CAMERA
 import com.dirk.acamera.rtc.PeerConnectionObserver
 import com.dirk.acamera.rtc.RtcClient
 import com.dirk.acamera.rtc.SimpleSdpObserver
@@ -43,6 +46,7 @@ class RtcFragment : Fragment() {
     private var isAudioEnabled = true
     private var hasVideoPermission = false
     private var hasAudioPermission = false
+    private var isFlashEnabled = false
 
     // Networking
     private lateinit var signalingClient: SignalingClient
@@ -51,13 +55,13 @@ class RtcFragment : Fragment() {
     private lateinit var rtcClient: RtcClient
 
     // Other
-    private lateinit var deviceIp: String
     private var port: Int = 8080 // TODO: Read from settings
+    private lateinit var deviceIp: String
     private lateinit var streamUrl: String
     private lateinit var howToConnectList: SpannableStringBuilder
 
     /**
-     * Fragment Lifecycle
+     * Fragment LifeCycle
      */
 
     override fun onCreateView(
@@ -83,8 +87,10 @@ class RtcFragment : Fragment() {
         showStatusBox(getString(R.string.status_initializing))
 
         // Initialize networking services
-        signalingClient = SignalingClient(createSignalingClientListener(), port)
-        signalingServer = SignalingServer(createSignalingServerListener(), requireContext(), port)
+        signalingServer = SignalingServer(createSignalingServerListener(), requireContext(), port).also {
+            it.start()
+        }
+        signalingClient = SignalingClient(createSignalingClientListener())
         sdpObserver = createSdpObserver()
         rtcClient = RtcClient(requireActivity().application, createPeerConnectionObserver())
         rtcClient.initSurfaceView(localView)
@@ -164,6 +170,17 @@ class RtcFragment : Fragment() {
         // Inflate a new view containing all the buttons
         val controls = View.inflate(requireContext(), R.layout.button_container, container)
 
+        // Settings button
+        controls.findViewById<ImageButton>(R.id.button_settings).let {
+            it.setOnClickListener {
+                /*Log.d(TAG, "Navigating to settings fragment")
+                Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
+                    RtcFragmentDirections.actionRtcToSettings()
+                )*/
+                Toast.makeText(context, getString(R.string.settings_not_yet_implemented), Toast.LENGTH_SHORT).show()
+            }
+        }
+
         // Colors for buttons
         val colorEnabledBackground = requireContext().getColorStateList(R.color.design_default_color_secondary)
         val colorEnabledIcon = requireContext().getColorStateList(R.color.design_default_color_on_secondary)
@@ -172,18 +189,38 @@ class RtcFragment : Fragment() {
         val colorDeniedBackground = requireContext().getColorStateList(R.color.design_default_color_error)
         val colorDeniedIcon = requireContext().getColorStateList(R.color.design_default_color_on_primary)
 
-        // Update video button
+        val buttonSwitch = controls.findViewById<ImageButton>(R.id.button_switch_camera)
+
+        /**
+         * Update video button
+         */
         controls.findViewById<ImageButton>(R.id.button_video).let {
             it.isClickable = false
+            buttonSwitch.isClickable = false
+
             if (hasVideoPermission) {
+
+                /**
+                 * Permission granted
+                 */
+
                 // Set listener if permission is granted
-                it.setOnClickListener {
+                it.setOnClickListener { _ ->
+                    it.isClickable = false
                     if (isVideoEnabled) {
                         disableVideo()
                     } else {
                         enableVideo()
                     }
+                    it.isClickable = true
                 }
+                // Set listener for switch button
+                buttonSwitch.setOnClickListener { _ ->
+                    it.isClickable = false
+                    rtcClient.switchCamera()
+                    it.isClickable = true
+                }
+
                 // Set button style
                 if (isVideoEnabled) {
                     // Button is enabled
@@ -196,30 +233,57 @@ class RtcFragment : Fragment() {
                     it.backgroundTintList = colorDisabledBackground
                     it.imageTintList = colorDisabledIcon
                 }
-                // Hide message on local view
+                // Set style for switch button
+                buttonSwitch.backgroundTintList = colorEnabledBackground
+                buttonSwitch.imageTintList = colorEnabledIcon
+
+                // Hide local view message
                 container.findViewById<TextView>(R.id.local_view_message).isGone = true
+
             } else {
+
+                /**
+                 * Permission denied
+                 */
+
                 // Set listener if permission is denied
                 it.setOnClickListener {
-                    Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, getString(R.string.permission_camera_denied), Toast.LENGTH_SHORT).show()
                 }
+                buttonSwitch.setOnClickListener {
+                    Toast.makeText(context, getString(R.string.permission_camera_denied), Toast.LENGTH_SHORT).show()
+                }
+
                 // Button style if no permission
                 it.setImageResource(R.drawable.ic_videocam_off_black_24dp)
                 it.backgroundTintList = colorDeniedBackground
                 it.imageTintList = colorDeniedIcon
+                buttonSwitch.backgroundTintList = colorDeniedBackground
+                buttonSwitch.imageTintList = colorDeniedIcon
+
                 // Show local view message
                 container.findViewById<TextView>(R.id.local_view_message).let { textView ->
-                    textView.text = getString(R.string.camera_permission_denied_info)
+                    textView.text = getString(R.string.permission_camera_denied_info)
                     textView.isGone = false
                 }
             }
+
             it.isClickable = true
+            buttonSwitch.isClickable = true
         }
 
-        // Update audio button
+        /**
+         * Update audio button
+         */
         controls.findViewById<ImageButton>(R.id.button_audio).let {
             it.isClickable = false
+
             if (hasAudioPermission) {
+
+                /**
+                 * Permission granted
+                 */
+
                 // Set listener if permission is granted
                 it.setOnClickListener {
                     if (isAudioEnabled) {
@@ -228,6 +292,7 @@ class RtcFragment : Fragment() {
                         enableAudio()
                     }
                 }
+
                 // Set button style
                 if (isAudioEnabled) {
                     // Button is enabled
@@ -240,16 +305,77 @@ class RtcFragment : Fragment() {
                     it.backgroundTintList = colorDisabledBackground
                     it.imageTintList = colorDisabledIcon
                 }
+
             } else {
+
+                /**
+                 * Permission denied
+                 */
+
                 // Set listener if permission is denied
                 it.setOnClickListener {
-                    Toast.makeText(context, getString(R.string.permission_denied), Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, getString(R.string.permission_audio_denied), Toast.LENGTH_SHORT).show()
                 }
+
                 // Button style if no permission
                 it.setImageResource(R.drawable.ic_mic_off_black_24dp)
                 it.backgroundTintList = colorDeniedBackground
                 it.imageTintList = colorDeniedIcon
             }
+
+            it.isClickable = true
+        }
+
+        /**
+         * Update flash button
+         */
+        controls.findViewById<ImageButton>(R.id.button_flash).let {
+            it.isClickable = false
+
+            if (hasVideoPermission) {
+
+                /**
+                 * Permission granted
+                 */
+
+                // Set listener
+                it.setOnClickListener {
+                    if (isFlashEnabled) {
+                        disableFlashlight()
+                    } else {
+                        enableFlashlight()
+                    }
+                }
+
+                // Set button style
+                if (isFlashEnabled) {
+                    // Button is enabled
+                    it.setImageResource(R.drawable.ic_flash_on_black_24dp)
+                    it.backgroundTintList = colorEnabledBackground
+                    it.imageTintList = colorEnabledIcon
+                } else {
+                    // Button is disabled
+                    it.setImageResource(R.drawable.ic_flash_off_black_24dp)
+                    it.backgroundTintList = colorDisabledBackground
+                    it.imageTintList = colorDisabledIcon
+                }
+            } else {
+
+                /**
+                 * Permission denied
+                 */
+
+                // Set listener if permission is denied
+                it.setOnClickListener {
+                    Toast.makeText(context, getString(R.string.permission_camera_denied), Toast.LENGTH_SHORT).show()
+                }
+
+                // Button style if no permission
+                it.setImageResource(R.drawable.ic_flash_off_black_24dp)
+                it.backgroundTintList = colorDeniedBackground
+                it.imageTintList = colorDeniedIcon
+            }
+
             it.isClickable = true
         }
     }
@@ -261,7 +387,7 @@ class RtcFragment : Fragment() {
     private fun checkPermissions() {
         // Ask for any permissions if necessary
         if (PermissionFragment.checkPermissionsChanged(requireContext()) ||
-            PermissionFragment.checkShowDialog(requireActivity(), PERMISSIONS_REQUIRED.toTypedArray())) {
+            PermissionFragment.checkShowDialog(requireActivity(), PERMISSIONS_REQUIRED)) {
             Log.d(TAG, "Permissions changed or show dialog")
             if (!PermissionFragment.checkAllPermissionsGranted(requireContext())) {
                 Log.d(TAG, "Checking permissions...")
@@ -364,6 +490,14 @@ class RtcFragment : Fragment() {
      */
 
     private fun createSignalingServerListener() = object : SignalingServerListener {
+        override fun onServerRunning() {
+            signalingClient.connect(port = port)
+        }
+
+        override fun onServerFailed() {
+
+        }
+
         override fun onConnectionEstablished() {
             // TODO: The client should tell which type it is
             // Check if local client was already connected
@@ -406,17 +540,18 @@ class RtcFragment : Fragment() {
 
         override fun onConnectionFailed() {
             if (signalingClient.retriesDone < signalingClient.retriesTotal) {
-                signalingClient.connect(1000)
+                signalingClient.connect(port = port, waitMillis = 1000)
             } else {
-                showStatusBox(
-                    getString(R.string.status_failed),
-                    showProgressBar = false
-                )
+                lifecycleScope.launchWhenStarted {
+                    showStatusBox(getString(R.string.status_failed), showProgressBar = false)
+                }
             }
         }
 
         override fun onConnectionAborted() {
-            showStatusBox(getString(R.string.status_aborted), showProgressBar = false)
+            lifecycleScope.launchWhenStarted {
+                showStatusBox(getString(R.string.status_aborted), showProgressBar = false)
+            }
         }
 
         override fun onOfferReceived(description: SessionDescription) {
@@ -459,23 +594,39 @@ class RtcFragment : Fragment() {
         Log.d(TAG, "Disabling video...")
         rtcClient.disableVideo()
         isVideoEnabled = false
-        Log.d(TAG, "Disabling video done")
         updateUi()
+        Log.d(TAG, "Disabling video done")
     }
 
     private fun enableAudio() {
         Log.d(TAG, "Enabling audio...")
         rtcClient.enableAudio()
         isAudioEnabled = true
-        Log.d(TAG, "Enabling audio done")
         updateUi()
+        Log.d(TAG, "Enabling audio done")
     }
 
     private fun disableAudio() {
         Log.d(TAG, "Disabling audio...")
         rtcClient.disableAudio()
         isAudioEnabled = false
-        Log.d(TAG, "Disabling audio done")
         updateUi()
+        Log.d(TAG, "Disabling audio done")
+    }
+
+    private fun enableFlashlight() {
+        Log.d(TAG, "Enabling flash...")
+        rtcClient.setFlashlight(true)
+        isFlashEnabled = true
+        updateUi()
+        Log.d(TAG, "Enabling flash done")
+    }
+
+    private fun disableFlashlight() {
+        Log.d(TAG, "Disabling flash...")
+        rtcClient.setFlashlight(false)
+        isFlashEnabled = false
+        updateUi()
+        Log.d(TAG, "Disabling flash done")
     }
 }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="stroke_small">4dp</dimen>
+    <dimen name="stroke_medium">8dp</dimen>
+    <dimen name="stroke_large">12dp</dimen>
+
+    <dimen name="button_elevation">2dp</dimen>
+    <dimen name="button_medium_margin_bottom">64dp</dimen>
+    <dimen name="button_medium_margin_side">32dp</dimen>
+    <dimen name="button_medium_padding">16dp</dimen>
+    <dimen name="round_button_small">32dp</dimen>
+    <dimen name="round_button_medium">64dp</dimen>
+    <dimen name="round_button_large">92dp</dimen>
+</resources>

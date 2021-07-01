@@ -1,5 +1,6 @@
 package com.dirk.acamera.fragments
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
@@ -19,18 +20,30 @@ typealias Permission = String
 
 /**
  * This fragments only purpose is to request permissions
- * Depending on the result it will show different parts of the app
+ * The results can be viewed with the "companion object" functions
  */
 class PermissionFragment : Fragment() {
     companion object {
+        // Self defined request code
+        const val PERMISSIONS_REQUEST_CODE = 10
+        // Camera permission string
+        const val PERMISSION_CAMERA = Manifest.permission.CAMERA
+        // Audio permission string
+        const val PERMISSION_AUDIO = Manifest.permission.RECORD_AUDIO
+        // List of all required permissions
+        val PERMISSIONS_REQUIRED: Array<String> = arrayOf(PERMISSION_CAMERA, PERMISSION_AUDIO)
+
+        /* Check if all required permissions are granted */
         fun checkAllPermissionsGranted(context: Context) = PERMISSIONS_REQUIRED.all {
             ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
         }
 
+        /* Check if the given permission is granted */
         fun checkPermissionGranted(context: Context, permission: Permission) : Boolean {
             return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
         }
 
+        /* Check if any permission has changed since the last check */
         fun checkPermissionsChanged(context: Context) : Boolean {
             PERMISSIONS_REQUIRED.forEach { permission ->
                 if (checkPermissionGranted(context, permission) != permissionsGranted.contains(permission)) {
@@ -41,6 +54,7 @@ class PermissionFragment : Fragment() {
             return false
         }
 
+        /* Check if the permission dialog should be displayed to the user */
         fun checkShowDialog(activity: Activity, permissions: Array<out Permission>) : Boolean {
             permissions.forEach {
                 if (shouldShowRequestPermissionRationale(activity, it)) {

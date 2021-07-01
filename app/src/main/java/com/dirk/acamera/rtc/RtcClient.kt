@@ -2,7 +2,12 @@ package com.dirk.acamera.rtc
 
 import android.app.Application
 import android.content.Context
+import android.graphics.ImageFormat
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.util.Log
+import com.dirk.acamera.utils.Ratio
+import com.dirk.acamera.utils.reduceRatio
 import org.webrtc.*
 
 private const val TAG = "aCamera RtcClient"
@@ -11,35 +16,48 @@ class RtcClient(
     context: Application,
     observer: PeerConnection.Observer
 ) {
+    enum class Camera {
+        NONE,
+        FRONT,
+        BACK
+    }
 
     companion object {
         private const val VIDEO_ID = "acamera_video"
         private const val AUDIO_ID = "acamera_audio"
         private const val STREAM_ID = "acamera_stream"
-
     }
 
-    private val rootEglBase: EglBase = EglBase.create()
+    private lateinit var surfaceViewRenderer: SurfaceViewRenderer
 
     private var videoTrack: VideoTrack? = null
     private var audioTrack: AudioTrack? = null
     private var isVideoInitialized = false
     private var isAudioInitialized = false
     private var isStreamInitialized = false
+    private var cameraUsed = Camera.NONE
+    private var isFlashEnabled = false
+    private var resolution = Ratio(1280, 720)
+    private var framerate = 30
 
-    init {
-        initPeerConnectionFactory(context)
-    }
-
+    private val rootEglBase: EglBase = EglBase.create()
     private val iceServer = listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
-
     private val peerConnectionFactory by lazy { buildPeerConnectionFactory() }
     private val mediaStream by lazy { peerConnectionFactory.createLocalMediaStream(STREAM_ID) }
-    private val videoCapturer by lazy { getVideoCapturer(context) }
+    private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    private val camera2Enumerator by lazy { FlashCamera2Enumerator(context, cameraManager) }
+    private val cameraSwitchHandler by lazy { createCameraSwitchHandler() }
+    private val videoCapturer by lazy { getLocalVideoCapturer() }
     private val videoSource by lazy { peerConnectionFactory.createVideoSource(false) }
     private val audioSource by lazy { peerConnectionFactory.createAudioSource(MediaConstraints()) }
-    private val peerConnection by lazy { peerConnectionFactory.createPeerConnection(iceServer, observer) }
+    private val peerConnection by lazy { buildPeerConnection(observer) }
     private val surfaceTextureHelper by lazy { SurfaceTextureHelper.create(Thread.currentThread().name, rootEglBase.eglBaseContext) }
+
+    init {
+        Log.d(TAG, "Creating RTC Client...")
+        initPeerConnectionFactory(context)
+        Log.d(TAG, "Creating RTC Client done")
+    }
 
     private fun initPeerConnectionFactory(context: Application) {
         val options = PeerConnectionFactory.InitializationOptions.builder(context)
@@ -61,19 +79,77 @@ class RtcClient(
             .createPeerConnectionFactory()
     }
 
-    private fun getVideoCapturer(context: Context) =
-        Camera2Enumerator(context).run {
-            deviceNames.find {
-                isFrontFacing(it)
-            }?.let {
-                createCapturer(it, null)
-            } ?: throw IllegalStateException()
-        }
+    private fun buildPeerConnection(observer: PeerConnection.Observer) =
+        peerConnectionFactory.createPeerConnection(
+            PeerConnection.RTCConfiguration(iceServer).apply {
+                enableCpuOveruseDetection = false
+            },
+            observer
+        )
+
+    /**
+     * Camera
+     */
+
+    private fun getLocalVideoCapturer() = camera2Enumerator.run {
+        val fc2c: FlashCameraVideoCapturer.CameraEventsHandler? = null
+        getBackCamera()?.let {
+            createCapturer(it, fc2c).also {
+                cameraUsed = Camera.BACK
+                surfaceViewRenderer.setMirror(false)
+            }
+        } ?: getFrontCamera()?.let {
+            createCapturer(it, fc2c).also {
+                cameraUsed = Camera.FRONT
+                surfaceViewRenderer.setMirror(true)
+            }
+        } ?: throw IllegalStateException()
+    }
 
     fun initSurfaceView(view: SurfaceViewRenderer) = view.run {
-        setMirror(true) // TODO: Read from settings
+        Log.d(TAG, "Initializing surface view...")
         setEnableHardwareScaler(true)
         init(rootEglBase.eglBaseContext, null)
+    }.also {
+        surfaceViewRenderer = view
+        Log.d(TAG, "Initializing surface view done")
+    }
+
+    private fun getFrontCamera() = camera2Enumerator.run {
+        deviceNames.find {
+            isFrontFacing(it)
+        }
+    }
+
+    private fun getBackCamera() = camera2Enumerator.run {
+        deviceNames.find {
+            isBackFacing(it)
+        }
+    }
+
+    fun switchCamera() {
+        videoCapturer.switchCamera(cameraSwitchHandler)
+    }
+
+    private fun createCameraSwitchHandler() = object : FlashCameraVideoCapturer.CameraSwitchHandler {
+        override fun onCameraSwitchDone(p0: Boolean) {
+            if (cameraUsed == Camera.FRONT) {
+                cameraUsed = Camera.BACK
+                surfaceViewRenderer.setMirror(false)
+            } else {
+                cameraUsed = Camera.FRONT
+                surfaceViewRenderer.setMirror(true)
+            }
+        }
+
+        override fun onCameraSwitchError(p0: String?) {
+            Log.e(TAG, "Could not switch camera: $p0")
+        }
+    }
+
+    fun setFlashlight(enabled: Boolean) {
+        isFlashEnabled = enabled
+        restartVideo()
     }
 
     /**
@@ -118,6 +194,23 @@ class RtcClient(
      */
 
     private fun initVideo(videoOutput: SurfaceViewRenderer) {
+        cameraManager.cameraIdList.forEach { camera ->
+            Log.v(TAG, "Getting characteristics for camera $camera ...")
+            val cameraCharacteristics = cameraManager.getCameraCharacteristics(camera)
+            val streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            /*streamConfigurationMap?.outputFormats?.forEach { format ->
+                Log.d(TAG, "Format: $format")
+                streamConfigurationMap.getOutputSizes(format).forEach { size ->
+                    val ratio = reduceRatio(size.width, size.height)
+                    Log.d(TAG, "Supported size: ${size.width}x${size.height} (${ratio.width}, ${ratio.height})")
+                }
+            }*/
+            camera2Enumerator.getSupportedFormats(camera)?.forEach {
+                val ratio = reduceRatio(it.width, it.height)
+                Log.v(TAG, "Format: ${it.imageFormat} Size: ${it.width}x${it.height} (${ratio.width}x${ratio.height}) FPS: ${it.framerate}")
+            }
+        }
+
         videoCapturer.initialize(
             surfaceTextureHelper,
             videoOutput.context,
@@ -131,7 +224,15 @@ class RtcClient(
     }
 
     private fun startVideo() {
-        videoCapturer.startCapture(1280, 720, 30)
+        videoCapturer.startCapture(resolution.width, resolution.height, framerate, isFlashEnabled)
+    }
+
+    private fun restartVideo() {
+        videoCapturer.changeCaptureFormat(resolution.width, resolution.height, framerate, isFlashEnabled)
+    }
+
+    private fun stopVideo() {
+        videoCapturer.stopCapture()
     }
 
     fun enableVideo(videoOutput: SurfaceViewRenderer) {
@@ -240,6 +341,7 @@ class RtcClient(
     }
 
     fun destroy() {
+        stopVideo()
         peerConnection?.close()
     }
 }

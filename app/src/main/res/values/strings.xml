@@ -11,8 +11,9 @@
     <!-- Permission Messages -->
     <string name="permission_check">Checking Permissions…</string>
     <string name="permission_required">Some Permissions are Required</string>
-    <string name="permission_denied">Permission was Denied</string>
-    <string name="camera_permission_denied_info">No Access to the Camera Granted</string>
+    <string name="permission_audio_denied">Audio Permission was Denied</string>
+    <string name="permission_camera_denied">Camera Permission was Denied</string>
+    <string name="permission_camera_denied_info">No Access to the Camera Granted</string>
     <string name="permission_required_info">This app needs to access the camera and audio of your device to use it\'s features. Your can deny access and still use the app, but won\'t be able to use the corresponding feature.</string>
 
     <!-- General -->
@@ -21,8 +22,14 @@
     <string name="str_deny">Deny</string>
 
     <!-- Image content descriptions -->
-    <string name="button_video_alt">Switch Camera</string>
-    <string name="button_audio_alt">Switch Microphone</string>
+    <string name="button_video_alt">Toggle camera on/off</string>
+    <string name="button_audio_alt">Toggle microphone on/off</string>
+    <string name="button_switch_alt">Switch between cameras</string>
+    <string name="button_flash_alt">Toggle flashlight on/off</string>
+    <string name="button_settings_alt">Open settings</string>
+
+    <!-- Settings -->
+    <string name="settings_not_yet_implemented">This button will open the settings at some point…</string>
 
 
     <!-- TODO: Remove or change this placeholder text -->
