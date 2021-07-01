@@ -17,9 +17,9 @@
             android:name=".MainActivity"
             android:clearTaskOnLaunch="true"
             android:screenOrientation="fullUser"
-            android:rotationAnimation="rotate"
+            android:rotationAnimation="seamless"
             android:resizeableActivity="true"
-            android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize">
+            android:configChanges="keyboardHidden|orientation|screenLayout|smallestScreenSize">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
