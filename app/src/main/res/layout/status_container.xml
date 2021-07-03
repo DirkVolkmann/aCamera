@@ -8,26 +8,29 @@
 
     <androidx.cardview.widget.CardView
         android:id="@+id/status_card"
-        android:layout_width="wrap_content"
+        style="ThemeOverlay.MaterialComponents.M"
+        android:layout_width="344dp"
         android:layout_height="wrap_content"
         android:animateLayoutChanges="true"
+        app:cardCornerRadius="8dp"
+        app:contentPadding="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <LinearLayout
-            android:layout_width="344dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/status_text_headline"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:alpha="0.87"
                 android:textAlignment="center"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
                 tools:text="Connection Status" />
 
             <TextView
@@ -36,15 +39,17 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="16dp"
-                android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                android:alpha="0.6"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
                 tools:text="Further information to the current status. This is usually a little bit longer text." />
 
             <TextView
                 android:id="@+id/status_text_important"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:alpha="0.6"
                 android:textAlignment="center"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
                 tools:text="Important message" />
 
             <ProgressBar
