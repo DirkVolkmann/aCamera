@@ -15,6 +15,7 @@ import com.dirk.acamera.fragments.Permission
 
 private const val TAG = "aCamera MainActivity"
 
+// TODO: Keep granted permissions in ViewModel instead
 // List of granted permissions since last request
 // Used to check if request have changed while app was running in the background
 val permissionsGranted = mutableListOf<Permission>()
@@ -22,16 +23,16 @@ val permissionsGranted = mutableListOf<Permission>()
 class MainActivity : AppCompatActivity() {
     private lateinit var container: FrameLayout
 
-    @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate called")
 
+        // Make status bar and navigation bar transparent
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
 
-        PreferenceManager.setDefaultValues(this, R.xml.root_preferences, false);
+        PreferenceManager.setDefaultValues(this, R.xml.root_preferences, false)
 
         setContentView(R.layout.activity_main)
         container = findViewById(R.id.fragment_container)
