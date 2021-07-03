@@ -27,7 +27,6 @@ class SignalingClient(
     private val listener: SignalingClientListener
 ) : CoroutineScope {
 
-    // TODO: Connection parameters (port) should be read from settings
     companion object {
         // JSON strings
         private const val JSON_TYPE = "type"

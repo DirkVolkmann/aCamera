@@ -52,7 +52,7 @@ class SignalingServer(
 
         //val ks = io.ktor.network.tls.certificates.buildKeyStore {  }
 
-        // TODO: Don't create a new certificate every time the app is restarted
+        // FIXME: Don't create a new certificate every time the app is restarted
         val KEYSTORE = buildKeyStore {
             certificate(CERT_ALIAS) {
                 hash = CERT_HASH_ALGORITHM
@@ -67,7 +67,6 @@ class SignalingServer(
         lateinit var x509TrustManager: X509TrustManager
     }
 
-    // TODO: Try different ports in case one is already in use
     enum class State {
         INITIALIZING,
         RUNNING,
@@ -113,8 +112,8 @@ class SignalingServer(
                 { KEYSTORE_PASS.toCharArray() },
                 { CERT_PASS.toCharArray() }
             ) {
+                // TODO: Try different ports in case one is already in use
                 port = this@SignalingServer.port
-                //keyStorePath = keyStore.asFile.absoluteFile
                 keyStorePath = keyStoreFile.absoluteFile
             }
 
@@ -162,7 +161,7 @@ class SignalingServer(
         Log.d(TAG, "Running server thread...")
         try {
             server.start(wait = false)
-            // TODO: This does not tell if server is actually running
+            // FIXME: This does not tell if server is actually running
             Log.d(TAG, "Running server thread success")
             state = State.RUNNING
             listener.onServerRunning()

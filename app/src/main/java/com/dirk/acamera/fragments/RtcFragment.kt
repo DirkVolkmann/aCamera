@@ -55,7 +55,8 @@ class RtcFragment : Fragment() {
     private lateinit var rtcClient: RtcClient
 
     // Other
-    private var port: Int = SignalingServer.SERVER_PORT_DEFAULT // TODO: Read from settings
+    // TODO: Read port from settings
+    private var port: Int = SignalingServer.SERVER_PORT_DEFAULT
     private lateinit var deviceIp: String
     private lateinit var streamUrl: String
     private lateinit var howToConnectList: SpannableStringBuilder
@@ -505,7 +506,7 @@ class RtcFragment : Fragment() {
         }
 
         override fun onConnectionEstablished() {
-            // TODO: The client should tell which type it is
+            // TODO: The client should tell which type it is (1/2)
             // Check if local client was already connected
             if (signalingClient.state == SignalingClient.State.CONNECTION_ESTABLISHED) {
                 Log.d(TAG, "Remote client connected")
@@ -519,7 +520,7 @@ class RtcFragment : Fragment() {
         }
 
         override fun onConnectionAborted() {
-            // TODO: The client should tell which type it is
+            // TODO: The client should tell which type it is (2/2)
             // Check if local client is still connected
             if (signalingClient.state != SignalingClient.State.CONNECTION_ABORTED) {
                 Log.d(TAG,"Remote client disconnected")
@@ -587,7 +588,7 @@ class RtcFragment : Fragment() {
      * Watchdog
      */
 
-    // TODO: watchdog restarts signaling server and client when they crash
+    // TODO: Watchdog restarts signaling server and client when they crash
 
     /**
      * Buttons

@@ -113,6 +113,7 @@ class PermissionFragment : Fragment() {
             return
         }
 
+        // TODO: Use registerForActivityResult instead (1/2)
         requestPermissions(permissions, PERMISSIONS_REQUEST_CODE)
     }
 
@@ -130,6 +131,7 @@ class PermissionFragment : Fragment() {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out Permission>, grantResults: IntArray) {
+        // TODO: Use registerForActivityResult instead (2/2)
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSIONS_REQUEST_CODE) {
             Log.d(TAG, "Permission request result arrived")
