@@ -88,13 +88,14 @@ class RtcFragment : Fragment() {
         showStatusBox(getString(R.string.status_initializing))
 
         // Initialize networking services
-        signalingServer = SignalingServer(createSignalingServerListener(), requireContext(), port).also {
-            it.start()
-        }
+        signalingServer = SignalingServer(createSignalingServerListener(), requireContext(), port)
         signalingClient = SignalingClient(createSignalingClientListener())
         sdpObserver = createSdpObserver()
         rtcClient = RtcClient(requireActivity().application, createPeerConnectionObserver())
         rtcClient.initSurfaceView(localView)
+
+        // Start the server
+        signalingServer.start()
     }
 
     override fun onResume() {
