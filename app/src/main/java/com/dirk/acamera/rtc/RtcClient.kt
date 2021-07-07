@@ -2,8 +2,6 @@ package com.dirk.acamera.rtc
 
 import android.app.Application
 import android.content.Context
-import android.graphics.ImageFormat
-import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.util.Log
 import com.dirk.acamera.utils.Ratio
@@ -82,6 +80,8 @@ class RtcClient(
     private fun buildPeerConnection(observer: PeerConnection.Observer) =
         peerConnectionFactory.createPeerConnection(
             PeerConnection.RTCConfiguration(iceServer).apply {
+                // disable CPU overuse detection or the configured resolution
+                // will most likely be ignored
                 enableCpuOveruseDetection = false
             },
             observer
@@ -128,6 +128,7 @@ class RtcClient(
     }
 
     fun switchCamera() {
+        Log.d(TAG, "Switching camera...")
         videoCapturer.switchCamera(cameraSwitchHandler)
     }
 
@@ -136,9 +137,11 @@ class RtcClient(
             if (cameraUsed == Camera.FRONT) {
                 cameraUsed = Camera.BACK
                 surfaceViewRenderer.setMirror(false)
+                Log.d(TAG, "Switched to back camera")
             } else {
                 cameraUsed = Camera.FRONT
                 surfaceViewRenderer.setMirror(true)
+                Log.d(TAG, "Switched to front camera")
             }
         }
 
@@ -194,17 +197,9 @@ class RtcClient(
      */
 
     private fun initVideo(videoOutput: SurfaceViewRenderer) {
+        // Get supported formats for each available camera
         cameraManager.cameraIdList.forEach { camera ->
-            Log.v(TAG, "Getting characteristics for camera $camera ...")
-            val cameraCharacteristics = cameraManager.getCameraCharacteristics(camera)
-            val streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            /*streamConfigurationMap?.outputFormats?.forEach { format ->
-                Log.d(TAG, "Format: $format")
-                streamConfigurationMap.getOutputSizes(format).forEach { size ->
-                    val ratio = reduceRatio(size.width, size.height)
-                    Log.d(TAG, "Supported size: ${size.width}x${size.height} (${ratio.width}, ${ratio.height})")
-                }
-            }*/
+            Log.v(TAG, "Getting supported formats for camera [$camera]...")
             camera2Enumerator.getSupportedFormats(camera)?.forEach {
                 val ratio = reduceRatio(it.width, it.height)
                 Log.v(TAG, "Format: ${it.imageFormat} Size: ${it.width}x${it.height} (${ratio.width}x${ratio.height}) FPS: ${it.framerate}")
